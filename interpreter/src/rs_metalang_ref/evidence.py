@@ -18,9 +18,8 @@ from numbers import Number, Real
 
 
 class Grade(Enum):
-    """The four incomparable evidence modalities (S2.1). P nless X, X nless P,
-    S nless P, J nless X, and similarly for every undeclared pair -- there is
-    no total order between them."""
+    """The four incomparable evidence modalities (S2.1). No pair is ordered:
+    none of the four ranks above or below any other."""
 
     P = "P"  # proof / replay / checker-validated deductive evidence
     X = "X"  # randomized or otherwise identified interventional evidence
@@ -231,9 +230,9 @@ def _detect_overlap(estimates) -> frozenset:
 def fuse(estimates: list[IntervalEstimate], dependence: Dependence | None) -> FusionResult:
     """S2.5 dependence-mediated fusion.
 
-    Implementation boundary: only `Duplicate` (dedupe, no confidence gain) is spelled
+    Only `Duplicate` (dedupe, no confidence gain) is spelled
     out as a concrete numeric rule by the specification. The other seven
-    declarations each name a MEANING and a permitted OPERATION (e.g.
+    declarations each name a meaning and a permitted operation (e.g.
     "product likelihood or registered independent combination", "the
     registered clustered estimator", "an anytime-valid e-process or
     confidence-sequence rule") but not one general combination formula, so
@@ -259,7 +258,7 @@ def fuse(estimates: list[IntervalEstimate], dependence: Dependence | None) -> Fu
             effective_information_count=1,
         )
     raise NotImplementedError(
-        f"Implementation boundary: S2.5 names the meaning of {dependence.value} but not a "
+        f"S2.5 names the meaning of {dependence.value} but not a "
         "general numeric combination rule beyond Duplicate; implementing one "
         "would be guessing semantics the specification leaves to a "
         "'registered' external estimator/design."
@@ -406,7 +405,7 @@ def check_requirement(requirement, evidence_bundle: list[Evidence]) -> bool:
         return len(values) <= 1
     if isinstance(requirement, Identified):
         raise NotImplementedError(
-            "Implementation boundary: IDENTIFIED(...) validity in general is not reduced "
+            "IDENTIFIED(...) validity in general is not reduced "
             "to one procedure by the specification beyond S2.7's specific "
             "worked identifiability-gate case (identifiability_gate above)."
         )

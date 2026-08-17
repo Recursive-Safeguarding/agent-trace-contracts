@@ -3,10 +3,11 @@
 S1.5 gives the related lifecycle order ("transition order"). S1.6 gives the
 terminal-conversion rules. The aggregate summary rule sits alongside them.
 
-The monitor executes the `after TRIGGER when GUARD require RESPONSE within D`
-shape. This executable fragment has no effect receipt semantics. It accepts at
-most one observation entry per event. A generic multi-clause monitor needs a
-pattern-matching algorithm that the specification does not define.
+The monitor executes one clause of the shape
+`after TRIGGER when GUARD require RESPONSE within D`, taking at most one
+observation entry per event and ignoring effect receipts. Extending it to
+several clauses at once would need a pattern-matching algorithm, which the
+specification leaves open.
 """
 
 from __future__ import annotations
@@ -84,15 +85,16 @@ class MonitorFault:
 class SingleClauseMonitor:
     """Execute the implemented single-`after`-clause lifecycle subset.
 
-    `step` supports `DomainEvent`, `TickEvent`, and `TerminalEvent`. The subset
-    has no effect receipt semantics. It accepts no observation or a
-    single-entry observation. `step` rejects an effect receipt or a larger
-    observation bundle before it reads or changes monitor state.
+    `step` supports `DomainEvent`, `TickEvent`, and `TerminalEvent`, each
+    carrying either no observation or a single-entry observation.
+    An effect receipt, or a larger observation bundle, is rejected before
+    `step` reads or changes monitor state, so a rejected event leaves the
+    monitor as it was.
 
-    `MalformedEvent` is outside this executable fragment because its reference
-    type has no event identifier or tick. `step` rejects that form with
-    `UnsupportedEventTypeError`. This rejection does not select a malformed
-    event transition. That semantic choice remains open.
+    `MalformedEvent` is rejected the same way, with `UnsupportedEventTypeError`,
+    because its reference type carries no event identifier or tick. Treat that
+    as this implementation declining to guess: what a malformed event should do
+    to monitor state is a semantic choice the specification leaves open.
     """
 
     def __init__(self, spec: AfterClauseSpec):
@@ -571,12 +573,12 @@ class SingleClauseMonitor:
         if self.mode is MonitorMode.FAULTED:
             return DenyUnknown("MonitorSemanticFault")
         raise NotImplementedError(
-            "Implementation boundary: the general S1.8 Permit_C(q,a) rule requires "
-            "evaluating every applicable `before` requirement, authority "
-            "predicate, and immediate forbid/flow/budget/invariant check "
-            "across the FULL contract -- this reference engine only "
-            "compiles the single AfterClauseSpec shape (see contracts.py), "
-            "so it cannot evaluate Permit_C generically."
+            "The general S1.8 Permit_C(q,a) rule requires evaluating every "
+            "applicable `before` requirement, authority predicate, and "
+            "immediate forbid/flow/budget/invariant check across the whole "
+            "contract. This reference engine compiles only the single "
+            "AfterClauseSpec shape (see contracts.py), so it cannot evaluate "
+            "Permit_C generically."
         )
 
 

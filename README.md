@@ -1,13 +1,35 @@
-# Trace-contracts reference code and test evidence
+<p align="center"><img src="docs/assets/logo.svg" width="96" alt="agent-trace-contracts logo"></p>
 
-This repository contains Recursive Safeguarding Ltd's non-normative reference
-code and test evidence for its trace-contracts meta-language specification.
+# Trace-contracts reference implementation
+
+<p align="center">
+  <img alt="Python 3.11 to 3.13" src="https://img.shields.io/badge/python-3.11%20%E2%80%93%203.13-3776AB?logo=python&logoColor=white">
+  <img alt="uv" src="https://img.shields.io/badge/packaging-uv-6340AC">
+  <img alt="pytest" src="https://img.shields.io/badge/tests-pytest-0A9EDC?logo=pytest&logoColor=white">
+  <img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-165354">
+  <img alt="version 0.1.0" src="https://img.shields.io/badge/version-0.1.0-165354">
+</p>
+
+An agent exports something at tick 0 and receives an approval at tick 1. It
+exports again at tick 2, then the clock advances to tick 3 with no second
+approval. A rule in force says every export must be approved within two ticks,
+so one approval is still owed.
+
+Now shorten that history, as a long-running agent must. Keep only the last
+event and the owed approval disappears; keep a table of what is still owed and
+it survives. **This software decides whether a shortened record still answers
+the same questions as the full one**, and it answers by running both through
+every future the rule admits and comparing what a checker reads.
+
+The worked example below runs exactly that comparison. `interpreter/` is the
+engine; `abstraction-capsule/` is the example.
 
 ## Specification
 
 The normative specification for v0.1.0 is a separate document titled
-Meta-Language Specification. This non-normative repository does not include
-that document.
+Meta-Language Specification. It accompanies the submission this
+repository supports and is not published separately, so this repository does
+not include it.
 
 The `interpreter/` package executes the worked bounded-response and
 residual-comparison fragment. It also exposes limited utilities for indexed
@@ -52,15 +74,20 @@ requires an approval within two ticks of each export. The source record
 therefore contains one open approval obligation. The one-event tail drops it,
 while the obligation-table record keeps it.
 
-If `Complete` is appended, the source becomes `Violated/Complete` and the tail
-becomes `Satisfied/Complete`,
-so the interpreter returns `Distinguished`. The test suite also checks that two- and
-three-entry tail windows return `NoWitnessWithinBound` at the same bounded
-scope. For the obligation-table record,
-the interpreter checks all seven continuations of at most two events and
-returns `NoWitnessWithinBound`. The comparison observes only `(Summary, Mode)`;
-it does not establish full-observation equivalence or agreement for longer
-continuations or another profile.
+Suppose the run then ends. The interpreter appends `Complete`, the terminal
+event marking a finished run, and reads each record again: the source reports
+`Violated/Complete`, because the owed approval never arrived, while the tail
+reports `Satisfied/Complete`, because it no longer holds the obligation to
+breach. The two records disagree, so the interpreter returns `Distinguished`.
+For the obligation-table record, the interpreter checks all seven continuations
+of at most two events and finds no such disagreement, so it returns
+`NoWitnessWithinBound`: no witness was found within the scope searched, which
+is a weaker statement than equivalence. The comparison observes only
+`(Summary, Mode)`, and only over continuations of at most two events under this
+one profile.
+
+The test suite also checks that two- and three-entry tail windows return
+`NoWitnessWithinBound` at the same bounded scope.
 
 ```sh
 (
@@ -89,11 +116,11 @@ Each package carries its own suite, run from its own directory:
 Each command exits with status 0 when its suite passes. If a command fails,
 its error output identifies the failing test.
 
-Passing both suites provides the repository's test evidence for the implemented
-cases. It does not by itself establish full conformance to the specification. The
-source map in `interpreter/README.md` associates each main test module with its
-specification topic and an S-label; the labels are local traceability markers,
-not specification section numbers.
+The suites cover the cases the interpreter implements. Passing them does not by
+itself establish full conformance to the specification. The source map in
+`interpreter/README.md` associates each main test module with its specification
+topic and an S-label, a local traceability marker rather than a specification
+section number.
 
 ## Licence and provenance
 

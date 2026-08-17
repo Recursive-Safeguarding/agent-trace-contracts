@@ -10,7 +10,7 @@ on the bad event) and a contamination fraction gamma ranging over
 prediction is safety-critical unknown, i.e. risk 1.0 by default) to the
 bad event.
 
-Implementation boundary: The general construction is a set of joint measures over an
+The general construction is a set of joint measures over an
 uncountable space with an explicit rectangularity declaration; representing
 that generally (arbitrary priors/likelihoods, arbitrary contamination
 measures) is a much larger modelling task the specification does not
