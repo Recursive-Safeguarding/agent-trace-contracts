@@ -1,0 +1,28 @@
+[project]
+name = "rs_metalang_ref"
+version = "0.1.0"
+description = "Runnable companion for the trace-contracts worked reference fragment"
+license = "MIT"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "pydantic==2.11.7",
+]
+
+[dependency-groups]
+dev = [
+    "hypothesis==6.165.0",
+    "pytest==9.0.3",
+]
+
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/rs_metalang_ref"]
+
+[tool.hatch.build.targets.sdist]
+exclude = ["/.hypothesis"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

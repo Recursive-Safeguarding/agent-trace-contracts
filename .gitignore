@@ -1,0 +1,21 @@
+# Virtual environments and build artefacts
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+
+# Test and lint caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.hypothesis/
+.coverage
+
+# Local working directories
+.scratch/
+.notes/
+
+# macOS
+.DS_Store
