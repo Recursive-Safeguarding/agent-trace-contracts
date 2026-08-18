@@ -11,9 +11,10 @@ the one-clause form used by S1's worked examples:
     after TRIGGER when GUARD require RESPONSE within D
         discharge MODE on_agent_abort DISPOSITION
 
-A tick-free proposition key such as `Sensitive(f)` is in this release
-fragment. An as-of key such as `Sensitive(f)@0` is not. The fragment does not
-represent predicate temporal kinds or as-of proposition keys.
+Proposition keys are opaque strings in this release fragment: the fragment
+assigns no temporal interpretation to any key, including keys that resemble
+as-of syntax such as `Sensitive(f)@0`. Predicate temporal kinds are not
+represented.
 
 The clause dataclasses model the grammar structurally. `always_check`,
 `forbid_check`, `before_check`, `at_end_check`, `budget_check`, `flow_check`,

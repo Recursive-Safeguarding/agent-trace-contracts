@@ -621,3 +621,21 @@ def test_s4_demonstrated_failure_no_plan_in_abstraction():
 )
 def test_s4_public_api_omits_unproduced_result_dataclasses(unused_result_type):
     assert not hasattr(viability, unused_result_type)
+
+
+def test_f_operator_denies_unpermitted_action_like_the_fixpoint():
+    """Regression for the permission gap: an action whose permission is
+    DenyUnknown must not create a winning predecessor through f_operator,
+    matching viability_fixpoint's Allow-only semantics."""
+    states = ["s", "g"]
+    safe = frozenset({"s", "g"})
+    goal = frozenset({"g"})
+    actions_by_state = {"s": frozenset({"a"})}
+    post = {("s", "a"): frozenset({"g"})}
+    denied = {("s", "a"): "DenyUnknown"}
+    allowed = {("s", "a"): "Allow"}
+    from rs_metalang_ref.viability import f_operator
+
+    x = frozenset({"g"})
+    assert f_operator(x, states, goal, safe, actions_by_state, post, denied) == frozenset({"g"})
+    assert f_operator(x, states, goal, safe, actions_by_state, post, allowed) == frozenset({"g", "s"})

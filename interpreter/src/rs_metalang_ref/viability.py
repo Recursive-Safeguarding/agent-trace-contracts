@@ -234,13 +234,18 @@ def f_operator(
     safe: FrozenSet[str],
     actions_by_state: Dict[str, FrozenSet[str]],
     post: Dict[Tuple[str, str], FrozenSet[str]],
+    permission: Dict[Tuple[str, str], str],
 ) -> FrozenSet[str]:
     """S4.4's F(X) = G intersect Safe_C union {z in Safe_C : exists a in
-    A_C(z), empty-set != Post(z,a) subset X}."""
+    A_C(z) with Permit_C(z,a), empty-set != Post(z,a) subset X}. Uses the
+    same permission semantics as `viability_fixpoint`: Allow only;
+    DenyUnknown is not permission."""
     result = set(goal) & set(safe)
     for z in states:
         if z in safe:
             for a in actions_by_state.get(z, frozenset()):
+                if not permit(permission, z, a):
+                    continue
                 succs = may_post(post, z, a)
                 if succs and succs <= x:
                     result.add(z)

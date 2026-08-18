@@ -223,10 +223,11 @@ class FusionRejected(Exception):
 def _detect_overlap(estimates) -> frozenset:
     if not estimates or not all(e.episodes for e in estimates):
         return frozenset()
-    overlap = estimates[0].episodes
-    for e in estimates[1:]:
-        overlap = overlap & e.episodes
-    return overlap
+    overlap = set()
+    for i, left in enumerate(estimates):
+        for right in estimates[i + 1:]:
+            overlap |= left.episodes & right.episodes
+    return frozenset(overlap)
 
 
 def fuse(estimates: list[IntervalEstimate], dependence: Dependence | None) -> FusionResult:

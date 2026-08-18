@@ -47,7 +47,6 @@ REMOVED_PROFILE_BOUND_FIELDS = (
     "timing_bound",
 )
 
-# the profile-relative operational-adequacy rule, the I_P declaration above.
 INTERFACE_COMPONENTS = ("configuration_type", "initialise", "step", "observe")
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[2]
