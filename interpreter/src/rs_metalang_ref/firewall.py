@@ -63,7 +63,7 @@ PROOF_PREMISE_CERTIFICATES = NEVER_DISCHARGEABLE_BY_NO_WITNESS | frozenset(
 # premises (S6.1) and the simulation and
 # labelling certificate that a
 # comparison result may never populate, together with the only propositions a
-# comparison result MAY discharge -- the three NoWitnessWithinBound forms
+# comparison result may discharge: the three NoWitnessWithinBound forms
 # (S6.1) and the Untested meta-proposition
 # TestStatus (S6.1; see also the result algebra's account of what a result
 # kind may discharge). It omits the meta-reports that SearchIncomplete may make: that a search

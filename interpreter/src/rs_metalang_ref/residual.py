@@ -18,8 +18,8 @@ acceptance tests:
 
 `bounded_compare` implements S5.7's witness-search algebra
 (ComparisonResult): it returns Distinguished, NoWitnessWithinBound, or
-SearchIncomplete, never ProvedEquivalent. Its docstring says why a bounded
-search cannot reach that fifth result.
+SearchIncomplete, never ProvedEquivalent. The symbolic proof that S5.7 requires
+for ProvedEquivalent is not constructed here.
 
 `canonical_observation_digest`, `bounded_compare`, and
 `TotalizedLTS.agrees_on_supplied_continuations` are generic utilities over the
@@ -504,10 +504,10 @@ class TotalizedLTS:
     ) -> bool:
         """Return whether residual encodings agree for every supplied word.
 
-        The result covers exactly the words supplied, which is weaker than the
-        universally quantified congruence of S5.4: agreement on a finite sample
-        is not a merge certificate. Comparisons inside the conformance fragment
-        use exact TotalObservation residuals.
+        The result covers exactly the words supplied, which is weaker than
+        the universally quantified congruence of S5.4: agreement on a finite
+        set of supplied words is not a merge certificate. Comparisons inside
+        the conformance fragment use exact TotalObservation residuals.
         """
         for word in continuations:
             left_observation = self.residual(u_state, word)
@@ -691,12 +691,11 @@ def bounded_compare(
     This never returns ProvedEquivalent. S5.7 states that ProvedEquivalent(F,
     pi) "implies global equivalence only if pi also proves that F = Sigma_C* or
     otherwise covers the complete admissible domain symbolically", that is, it
-    requires a symbolic proof over a possibly infinite alphabet. Enumerating
-    words one at a time, as this reference does, cannot produce such a proof
-    however many words it covers. Distinguished records a witness,
-    NoWitnessWithinBound records a completed exhaustive search, and
-    SearchIncomplete records exhaustion of an explicit word budget before
-    the declared domain was exhausted.
+    requires a symbolic proof over a possibly infinite alphabet, which this
+    reference's brute-force enumeration does not construct. Distinguished
+    records a witness, NoWitnessWithinBound records a completed exhaustive
+    search, and SearchIncomplete records exhaustion of an explicit word
+    budget before the declared domain was exhausted.
 
     This comparator covers words in an immutable unit-data domain. Each label
     advances time by one relative tick, so the timing bound is the continuation

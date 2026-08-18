@@ -1,22 +1,21 @@
 """Finite-discrete robust-risk arithmetic (S3, "the joint robust object and
 gate").
 
-`AmbiguitySet` specializes the S3.2 ambiguity set to the
-finite discrete case that every test and worked example for the local S3 family
-actually uses: a scalar `core_bad_mass` (the core's supremum probability mass
-on the bad event) and a contamination fraction gamma ranging over
-[gamma_min, gamma_max], with the outside-model component assigning
-`outside_model_risk` (the specified risk for an unsupported high-impact
-prediction is safety-critical unknown, i.e. risk 1.0 by default) to the
-bad event.
+`AmbiguitySet` specializes the S3.2 ambiguity set to the finite discrete
+case that every test and worked example for the local S3 family actually
+uses: a scalar `core_bad_mass` (the core's supremum probability mass on the
+bad event) and a contamination fraction gamma ranging over [gamma_min,
+gamma_max], with the outside-model component assigning `outside_model_risk`
+(the specified risk for an unsupported high-impact prediction is
+safety-critical unknown, i.e. risk 1.0 by default) to the bad event.
 
-The general construction is a set of joint measures over an
-uncountable space with an explicit rectangularity declaration; representing
-that generally (arbitrary priors/likelihoods, arbitrary contamination
-measures) is a much larger modelling task the specification does not
-reduce to one concrete data structure. The finite-discrete specialization
-below implements the S3 acceptance-test and worked-example cases. It reproduces their
-expected numeric outputs exactly.
+The general construction is a set of joint measures over an uncountable
+space with an explicit rectangularity declaration; representing that
+generally (arbitrary priors/likelihoods, arbitrary contamination measures)
+is a much larger modelling task the specification does not reduce to one
+concrete data structure. The finite-discrete specialization below
+implements the S3 acceptance-test and worked-example cases. It reproduces
+their expected numeric outputs exactly.
 """
 
 from __future__ import annotations

@@ -18,8 +18,10 @@ from numbers import Number, Real
 
 
 class Grade(Enum):
-    """The four incomparable evidence modalities (S2.1). No pair is ordered:
-    none of the four ranks above or below any other."""
+    """The four incomparable evidence modalities (S2.1). Where the
+    specification declares no ordering between two of them neither outranks the
+    other, and there is no total order over the four: a proof (`P`) does not
+    outrank an intervention (`X`), nor an intervention a proof."""
 
     P = "P"  # proof / replay / checker-validated deductive evidence
     X = "X"  # randomized or otherwise identified interventional evidence
@@ -230,16 +232,16 @@ def _detect_overlap(estimates) -> frozenset:
 def fuse(estimates: list[IntervalEstimate], dependence: Dependence | None) -> FusionResult:
     """S2.5 dependence-mediated fusion.
 
-    Only `Duplicate` (dedupe, no confidence gain) is spelled
-    out as a concrete numeric rule by the specification. The other seven
+    Only `Duplicate` (dedupe, no confidence gain) is spelled out as a
+    concrete numeric rule by the specification. The other seven
     declarations each name a meaning and a permitted operation (e.g.
     "product likelihood or registered independent combination", "the
     registered clustered estimator", "an anytime-valid e-process or
     confidence-sequence rule") but not one general combination formula, so
     this reference raises NotImplementedError for them rather than
-    inventing a formula the spec does not state. `dependence=None`
-    (S2.11's demonstrated failure) is fully specified: fusion is rejected,
-    and the detected episode overlap is reported.
+    inventing a formula the spec does not state. `dependence=None` (S2.11's
+    demonstrated failure) is fully specified: fusion is rejected, and the
+    detected episode overlap is reported.
     """
     if dependence is None:
         overlap = _detect_overlap(estimates)
@@ -383,10 +385,9 @@ class Identified:
 def check_requirement(requirement, evidence_bundle: list[Evidence]) -> bool:
     """S2.6 claim requirements are positive Boolean formulas over
     modality-indexed propositions. AND/OR over modality leaves and SAME(...)
-    (index-field equality) are mechanical. IDENTIFIED(...) is NOT reduced by
+    (index-field equality) are mechanical. IDENTIFIED(...) is not reduced by
     the specification to one general procedure beyond the specific S2.7
-    identifiability-gate case -- see the NotImplementedError below
-    (implementation boundary)."""
+    identifiability-gate case; see the NotImplementedError below."""
     if isinstance(requirement, ModalityRequirement):
         return any(
             e.modality is requirement.grade and _schema(e.proposition) == requirement.pattern

@@ -5,7 +5,7 @@ terminal-conversion rules. The aggregate summary rule sits alongside them.
 
 The monitor executes one clause of the shape
 `after TRIGGER when GUARD require RESPONSE within D`, taking at most one
-observation entry per event and ignoring effect receipts. Extending it to
+observation entry per event and rejecting effect receipts. Extending it to
 several clauses at once would need a pattern-matching algorithm, which the
 specification leaves open.
 """
@@ -91,10 +91,11 @@ class SingleClauseMonitor:
     `step` reads or changes monitor state, so a rejected event leaves the
     monitor as it was.
 
-    `MalformedEvent` is rejected the same way, with `UnsupportedEventTypeError`,
-    because its reference type carries no event identifier or tick. Treat that
-    as this implementation declining to guess: what a malformed event should do
-    to monitor state is a semantic choice the specification leaves open.
+    `MalformedEvent` is rejected at the same point, with
+    `UnsupportedEventTypeError`, because its reference type carries no event
+    identifier or tick. What a
+    malformed event should do to monitor state is a semantic choice the
+    specification leaves open, and rejection here selects none of the options.
     """
 
     def __init__(self, spec: AfterClauseSpec):
@@ -359,7 +360,7 @@ class SingleClauseMonitor:
             if response_match is not None:
                 self._register_response(event, tick, response_match, explicit_oids)
 
-        # 9. Evaluate instantaneous clauses -- none in this single-clause
+        # 9. Evaluate instantaneous clauses: none in this single-clause
         # engine beyond the response obligation itself.
 
         # 10. Boundary expiry.

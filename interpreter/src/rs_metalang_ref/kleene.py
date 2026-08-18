@@ -77,7 +77,7 @@ def refines(prior: K3, updated: K3) -> bool:
 
 
 class InconsistentObservation(Exception):
-    """Raised when an epistemic update on the SAME proposition key would
+    """Raised when an epistemic update on the same proposition key would
     retract an already-established truth value (S1.2's contradictory-update
     rule): the monitor 'does not silently choose either truth value' and
     instead surfaces a typed MonitorFault (see monitor.py)."""

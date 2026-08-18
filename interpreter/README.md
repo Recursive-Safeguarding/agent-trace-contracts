@@ -19,9 +19,10 @@ enforcement component acting on comparison results; none is included here).
 ## Specification
 
 The normative reference for v0.1.0 is a separate document, the Meta-Language
-Specification, which this package does not include. Where the two differ, the
-specification governs. The `S1` to `S6` labels used throughout this package
-point at topics in it without being its section numbers.
+Specification, which this package does not include. The `S1` to `S6` labels
+used throughout this package, and their dotted forms such as `S1.4` and
+`S5.7`, point at topics in the specification without being its section
+numbers.
 
 ## Start with one example
 
@@ -57,8 +58,8 @@ From this directory, run:
 uv run --frozen python -m pytest -p no:cacheprovider -q
 ```
 
-The suite covers the cases mapped in the source map below, and no more than
-those. To list the collected tests, run
+The suite exercises the cases mapped in the source map below, alongside further
+tests the map does not list. To list the collected tests, run
 `uv run --frozen python -m pytest -p no:cacheprovider -q --collect-only`.
 
 ## Implemented surfaces
@@ -66,20 +67,20 @@ those. To list the collected tests, run
 The table below names the surfaces that this package exposes; module docstrings
 give the local API details. The "Boundary" column states the scope each surface
 is valid within, which is a fact about this implementation rather than about the
-specification. The source map at the end of this README associates each S-label
-with its related tests.
+specification. The source map at the end of this README associates the
+S-labels it lists with their related tests.
 
 | Surface | Included here | Boundary |
 |---|---|---|
 | Contract monitor | The single `after TRIGGER when GUARD require RESPONSE within D` clause used by the S1 total three-valued bounded-response semantics fixtures, with linear response allocation and typed terminal conversion | There is no general pattern-matching compiler or general multi-clause monitor |
 | Discharge mode | `Linear()` in `SingleClauseMonitor` | Constructing the monitor with `Broadcast(key)` raises `UnsupportedDischargeModeError` rather than falling back to linear allocation |
 | Event input | Domain, tick, and terminal events used by the monitor | `MalformedEvent` is outside this interpreter's event boundary; `SingleClauseMonitor.step(...)` raises `UnsupportedEventTypeError` before it reads or changes state |
-| Indexed evidence | Subject unification, conjunction, duplicate-report fusion, and the implemented identifiability checks | The identifiability checks hold under the dependence model each fixture declares |
-| Finite-discrete risk | `ThreeWayReport`, `AmbiguitySet`, and its finite-discrete upper-risk calculation | The calculation is finite and discrete throughout; it takes the ambiguity set as given rather than deriving or narrowing it |
-| Viability | Finite-state fixpoint and classification utilities | The fixpoint is finite-state, and the tests bound a numerical estimate rather than proving the infinite-horizon stochastic result |
-| Residual comparison | `TotalizedLTS`, `monitor_residual`, and bounded word search over unit data with one relative tick per label | `bounded_compare` returns `Distinguished`, `NoWitnessWithinBound`, or `SearchIncomplete`, and never `ProvedEquivalent`: a search that finds no witness within its bound has not proved equivalence. It runs over unit data on the fixed timing schedule above |
-| Result algebra | Five comparison-result constructors and their scope records | Each constructor carries the scope its result is valid within |
-| Proof firewall | The implemented result-type separation checks and probability-bound arithmetic | The separation checks and the arithmetic are the whole of what runs here; nothing in this package enforces a safety guarantee at runtime |
+| Indexed evidence | Subject unification, conjunction, duplicate-report fusion, and the implemented identifiability checks | Coverage is limited to the listed operations; fusion runs only under a declared `Duplicate` dependence |
+| Finite-discrete risk | `ThreeWayReport`, `AmbiguitySet`, and its finite-discrete upper-risk calculation | It takes the ambiguity set as given rather than deriving or narrowing it, and computes a risk bound rather than gating on it |
+| Viability | Finite-state fixpoint and classification utilities | The tests bound a numerical estimate rather than proving the infinite-horizon stochastic result |
+| Residual comparison | `TotalizedLTS`, `monitor_residual`, and bounded word search over unit data with one relative tick per label | `bounded_compare` returns `Distinguished`, `NoWitnessWithinBound`, or `SearchIncomplete`, and never `ProvedEquivalent`: a search that finds no witness within its bound has not proved equivalence |
+| Result algebra | Five comparison-result constructors and their scope records | Result rendering and linting are outside this package |
+| Proof firewall | The implemented result-type separation checks and probability-bound arithmetic | The package contains no shield-certificate checker, no shield-action selector, and no executable hard-safety guarantee |
 
 ## Source map
 
