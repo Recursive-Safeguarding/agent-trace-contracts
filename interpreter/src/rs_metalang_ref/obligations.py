@@ -1,7 +1,8 @@
 """Response-obligation lifecycle for the single-`after`-clause fragment.
 
-S1.1 is obligation identity, and S1.2 is the trigger-and-guard rule. S1.3 is
-retroactive activation, and S1.4 is response-token discipline.
+The `S1.4`-style labels in this module mark the response-obligation rules
+(trigger and guard, retroactive activation, response-token discipline); they
+are local implementation labels, not specification section identifiers.
 
 Each occurrence has a trace-local canonical alias such as `o1`. The alias is a
 monitor-local presentation identifier. The normative structured identity

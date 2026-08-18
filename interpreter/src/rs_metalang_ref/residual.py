@@ -389,7 +389,8 @@ _ENABLED_ACTIONS_ABSENT = object()
 def _declared_enabled_actions(observation):
     """The `enabled_actions` field of a contract observation, or the absent
     marker when the observation carries none. This reference `VerdictObject`
-    declares that omission (verdict.py, divergence list), so the consistency
+    permits that omission (verdict.py notes the unimplemented normative
+    fields), so the consistency
     invariant below has nothing to check against such an observation."""
     if isinstance(observation, Mapping):
         if "enabled_actions" in observation:

@@ -9,7 +9,7 @@ instance. The specification document remains normative.
 
 The `S1.4`-style labels below and throughout the modules are local
 implementation labels, not specification section identifiers. README.md maps
-each construction to its PDF section.
+each construction to its related tests.
 
 Module map:
     kleene      -- S1.2 strong-Kleene three-valued truth domain
