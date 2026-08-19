@@ -90,6 +90,8 @@ interpreter returns `Distinguished` and names that continuation as the
 witness. The obligation record carried the duty, so it reads the breach
 exactly as the full record does, and across all seven continuations the
 two never disagree; for it the interpreter returns `NoWitnessWithinBound`.
+The test suite also checks that two- and three-entry tail windows return
+`NoWitnessWithinBound` at the same bounded scope.
 
 > [!IMPORTANT]
 > The interpreter returns one of two things: a counterexample future, or a
