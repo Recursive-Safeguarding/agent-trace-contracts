@@ -1,26 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96" role="img" aria-label="agent-trace-contracts">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-2.32 -4.82 104.63 104.63" role="img" aria-label="agent-trace-contracts">
   <title>agent-trace-contracts</title>
-  <desc>A trace carrying two duties: the left one discharged and closed, the right one still owed at an open deadline.</desc>
-  <!-- Light colours are presentation attributes, so a renderer with no CSS support still gets them
-       right. The dark block overrides only where the cascade is honoured. RS teal measures 8.75:1
-       on white but 2.16:1 on GitHub's dark canvas, so the mark lightens to 8.71:1 there and the
-       trace darkens to stay subordinate. -->
-  <style>
-    @media (prefers-color-scheme: dark) {
-      .mark  { stroke: #5CBFC0; }
-      .node  { fill:   #5CBFC0; }
-      .trace { stroke: #2C5757; }
-    }
-  </style>
-
-  <line class="trace" x1="8" y1="68" x2="68" y2="68" stroke="#D0E1E1" stroke-width="3.5" stroke-linecap="round"/>
-
-  <path class="mark" d="M15 68 Q27 -34 39 68" fill="none" stroke="#165354" stroke-width="5.5" stroke-linecap="round"/>
-  <circle class="node" cx="15" cy="68" r="6" fill="#165354"/>
-  <circle class="node" cx="39" cy="68" r="6" fill="#165354"/>
-
-  <path class="mark" d="M57 68 Q69 -34 81 68" fill="none" stroke="#165354" stroke-width="5.5"
-        stroke-linecap="round" stroke-dasharray="12 10"/>
-  <circle class="node" cx="57" cy="68" r="6" fill="#165354"/>
-  <circle class="mark" cx="81" cy="68" r="10.5" fill="none" stroke="#165354" stroke-width="4.2"/>
+  <polygon fill="#000" points="67.8 25.4 70.8 28.4 91.3 8.7 88.4 5.7"/>
+  <polygon fill="#000" points="60.2 23.3 39.9 23.3 25.9 37.3 25.9 57.6 39.9 71.8 60.2 71.8 74.1 57.6 74.1 37.3"/>
+  <polygon fill="#000" points="89.9 23.5 80.7 32.5 82.1 33.9 82.1 60.7 63.5 79.5 36.6 79.5 17.8 60.7 17.8 33.9 36.6 15.5 63.5 15.5 63.9 15.8 72.9 6.9 68.7 2.6 31.3 2.6 4.9 28.5 4.9 66 31.3 92.4 68.7 92.4 95.1 66 95.1 28.5"/>
 </svg>

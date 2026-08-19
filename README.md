@@ -1,4 +1,9 @@
-<p align="center"><img src="docs/assets/logo.svg" width="96" alt="agent-trace-contracts logo"></p>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg">
+    <img src="docs/assets/logo.svg" width="96" alt="agent-trace-contracts logo">
+  </picture>
+</p>
 
 # Trace contracts for shortened agent records
 
@@ -59,7 +64,12 @@ run a continuation.
 Suppose the history now has to be shortened. The example builds two
 shortened records by hand. The tail record keeps the last event only, the
 clock tick at 3. The obligation record keeps no events at all; it keeps a
-one-row table saying that `mylib@1.2.4` still owes an approval by tick 4.
+one-row table saying that the second export still owes an approval by tick 4.
+
+<p align="center">
+  <img src="docs/assets/figure1-three-records.png" width="820" alt="Three records of the same run, and one future that tells them apart: the full record and the obligation record both read VIOLATED when the run ends at tick 4 with no approval; the tail record, holding no duty, reads SATISFIED.">
+</p>
+<p align="center"><em>Three records of the same run, and one future that tells them apart.</em></p>
 
 ### What the interpreter finds
 
