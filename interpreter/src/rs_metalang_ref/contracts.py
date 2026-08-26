@@ -6,10 +6,15 @@
 S1.1 requires pattern matching to be total, deterministic, and finite, but it
 does not choose one concrete matcher or pattern syntax. This module therefore
 does not implement a general multi-clause compiler. The executable fragment is
-the one-clause form used by S1's worked examples:
+the one-clause core form, whose discharge mode and abort disposition the
+specification fixes:
 
     after TRIGGER when GUARD require RESPONSE within D
-        discharge MODE on_agent_abort DISPOSITION
+        discharge Linear on_agent_abort Breach
+
+`AfterClauseSpec` refuses anything wider: binding fields, a guard that is not
+ground, or either of those two positions filled by something else. This
+version holds no reading for such a clause, so it names none.
 
 Proposition keys are opaque strings in this release fragment: the fragment
 assigns no temporal interpretation to any key, including keys that resemble
