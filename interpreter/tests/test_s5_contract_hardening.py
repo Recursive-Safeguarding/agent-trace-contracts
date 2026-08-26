@@ -35,6 +35,7 @@ from rs_metalang_ref.events import Complete, DomainEvent, TerminalEvent
 from rs_metalang_ref.kleene import K3
 from rs_metalang_ref.monitor import SingleClauseMonitor
 from rs_metalang_ref.residual import (
+    exact_observation,
     ComparisonScope,
     DisabledReason,
     Distinguished,
@@ -114,7 +115,6 @@ def test_s5_bounded_compare_has_only_the_narrowed_public_parameters():
         "max_words",
         "contract_environment",
         "observation_projection",
-        "continuation_family",
     )
     assert signature.parameters["max_words"].default is None
     assert signature.parameters["bound"].kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
@@ -141,8 +141,7 @@ def test_s5_bounded_compare_rejects_a_bound_subclass_before_callbacks():
             alphabet=("approval",),
             bound=DerivedBound(continuation_length=1),
             contract_environment="C",
-            observation_projection="identity[str]",
-            continuation_family="all-words-through-declared-bound",
+            observation_projection=exact_observation,
         )
 
     assert calls == []
@@ -248,8 +247,7 @@ def test_s5_alphabet_none_raises_invalid_comparison_request_before_any_search():
             alphabet=None,
             bound=UnitDataUnitAdvanceBound(continuation_length=1),
             contract_environment="C",
-            observation_projection="TotalObservation_C",
-            continuation_family="all-words-through-declared-bound",
+            observation_projection=exact_observation,
         )
 
 
@@ -261,8 +259,7 @@ def test_s5_alphabet_int_element_raises_invalid_comparison_request_before_any_se
             alphabet=("a", 1),
             bound=UnitDataUnitAdvanceBound(continuation_length=1),
             contract_environment="C",
-            observation_projection="TotalObservation_C",
-            continuation_family="all-words-through-declared-bound",
+            observation_projection=exact_observation,
         )
 
 
@@ -274,8 +271,7 @@ def test_s5_alphabet_bytes_element_raises_invalid_comparison_request_before_any_
             alphabet=("a", b"b"),
             bound=UnitDataUnitAdvanceBound(continuation_length=1),
             contract_environment="C",
-            observation_projection="TotalObservation_C",
-            continuation_family="all-words-through-declared-bound",
+            observation_projection=exact_observation,
         )
 
 
@@ -287,8 +283,7 @@ def test_s5_alphabet_duplicate_raises_invalid_comparison_request_before_any_sear
             alphabet=("a", "a"),
             bound=UnitDataUnitAdvanceBound(continuation_length=1),
             contract_environment="C",
-            observation_projection="TotalObservation_C",
-            continuation_family="all-words-through-declared-bound",
+            observation_projection=exact_observation,
         )
 
 
@@ -302,8 +297,7 @@ def test_s5_alphabet_empty_tuple_is_valid_and_searches_only_the_empty_word():
         alphabet=(),
         bound=UnitDataUnitAdvanceBound(continuation_length=1),
         contract_environment="C",
-        observation_projection="identity[str]",
-        continuation_family="all-words-through-declared-bound",
+        observation_projection=exact_observation,
     )
 
     assert isinstance(result, NoWitnessWithinBound)
@@ -324,8 +318,7 @@ def test_s5_alphabet_duplicate_free_case_still_searches_correctly():
         alphabet=("a", "b"),
         bound=UnitDataUnitAdvanceBound(continuation_length=1),
         contract_environment="C",
-        observation_projection="identity[str]",
-        continuation_family="all-words-through-declared-bound",
+        observation_projection=exact_observation,
     )
 
     assert isinstance(result, Distinguished)
@@ -387,8 +380,7 @@ def test_s5_bounded_compare_refuses_same_callback_nan_observation_not_distinguis
             alphabet=(),
             bound=UnitDataUnitAdvanceBound(continuation_length=0),
             contract_environment="C",
-            observation_projection="TotalObservation_C",
-            continuation_family="all-words-through-declared-bound",
+            observation_projection=exact_observation,
         )
 
 
@@ -436,8 +428,7 @@ def test_s5_alphabet_generator_rejected_without_consuming():
             alphabet=small_generator(),
             bound=UnitDataUnitAdvanceBound(continuation_length=1),
             contract_environment="C",
-            observation_projection="TotalObservation_C",
-            continuation_family="all-words-through-declared-bound",
+            observation_projection=exact_observation,
         )
 
 
@@ -452,8 +443,7 @@ def test_s5_alphabet_dict_rejected_without_consuming():
             alphabet={"a": 1, "b": 2},
             bound=UnitDataUnitAdvanceBound(continuation_length=1),
             contract_environment="C",
-            observation_projection="TotalObservation_C",
-            continuation_family="all-words-through-declared-bound",
+            observation_projection=exact_observation,
         )
 
 
@@ -467,8 +457,7 @@ def test_s5_alphabet_set_rejected_without_consuming():
             alphabet={"a", "b"},
             bound=UnitDataUnitAdvanceBound(continuation_length=1),
             contract_environment="C",
-            observation_projection="TotalObservation_C",
-            continuation_family="all-words-through-declared-bound",
+            observation_projection=exact_observation,
         )
 
 
@@ -481,8 +470,7 @@ def test_s5_alphabet_str_as_container_rejected():
             alphabet="ab",
             bound=UnitDataUnitAdvanceBound(continuation_length=1),
             contract_environment="C",
-            observation_projection="TotalObservation_C",
-            continuation_family="all-words-through-declared-bound",
+            observation_projection=exact_observation,
         )
 
 
@@ -498,8 +486,7 @@ def test_s5_alphabet_str_subclass_element_rejected():
             alphabet=("a", LabelStr("b")),
             bound=UnitDataUnitAdvanceBound(continuation_length=1),
             contract_environment="C",
-            observation_projection="TotalObservation_C",
-            continuation_family="all-words-through-declared-bound",
+            observation_projection=exact_observation,
         )
 
 
@@ -586,8 +573,7 @@ def test_s5_bounded_compare_accepts_identical_total_observations_with_terminal_k
         alphabet=(),
         bound=UnitDataUnitAdvanceBound(continuation_length=0),
         contract_environment="C",
-        observation_projection="TotalObservation_C",
-        continuation_family="all-words-through-declared-bound",
+        observation_projection=exact_observation,
     )
 
     assert isinstance(result, NoWitnessWithinBound)
@@ -612,8 +598,7 @@ def _no_witness_within_bound_result() -> NoWitnessWithinBound:
         alphabet=(),
         bound=UnitDataUnitAdvanceBound(continuation_length=0),
         contract_environment="C",
-        observation_projection="TotalObservation_C",
-        continuation_family="all-words-through-declared-bound",
+        observation_projection=exact_observation,
     )
     assert isinstance(result, NoWitnessWithinBound), (
         "precondition: identical sides do not distinguish"
@@ -641,8 +626,7 @@ def test_s5_bounded_compare_refuses_a_comparison_scope_offered_as_an_observation
             alphabet=(),
             bound=UnitDataUnitAdvanceBound(continuation_length=0),
             contract_environment="C",
-            observation_projection="TotalObservation_C",
-            continuation_family="all-words-through-declared-bound",
+            observation_projection=exact_observation,
         )
 
 
@@ -663,8 +647,7 @@ def test_s5_bounded_compare_refuses_a_no_witness_within_bound_offered_as_an_obse
             alphabet=(),
             bound=UnitDataUnitAdvanceBound(continuation_length=0),
             contract_environment="C",
-            observation_projection="TotalObservation_C",
-            continuation_family="all-words-through-declared-bound",
+            observation_projection=exact_observation,
         )
 
 
@@ -720,8 +703,7 @@ def test_s5_bounded_compare_refuses_external_mapping_observation_without_invokin
             alphabet=(),
             bound=UnitDataUnitAdvanceBound(continuation_length=0),
             contract_environment="C",
-            observation_projection="TotalObservation_C",
-            continuation_family="all-words-through-declared-bound",
+            observation_projection=exact_observation,
         )
 
     assert external.invoked_methods == []
@@ -749,8 +731,7 @@ def test_s5_bounded_compare_refuses_a_tuple_subclass_observation():
             alphabet=(),
             bound=UnitDataUnitAdvanceBound(continuation_length=0),
             contract_environment="C",
-            observation_projection="TotalObservation_C",
-            continuation_family="all-words-through-declared-bound",
+            observation_projection=exact_observation,
         )
 
 

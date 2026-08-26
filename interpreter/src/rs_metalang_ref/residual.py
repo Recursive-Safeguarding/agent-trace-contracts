@@ -616,6 +616,34 @@ class UnitDataUnitAdvanceBound:
         object.__setattr__(self, "timing_bound", self.continuation_length)
 
 
+def exact_observation(observation):
+    """The profile projection that reads the whole observation value."""
+    return observation
+
+
+@dataclasses.dataclass(frozen=True)
+class AllWordsThroughBound:
+    """The finite admitted family a bounded comparison enumerates.
+
+    Every word over `alphabet` of length at most `max_length`, in
+    length-then-alphabet-product order. The comparator enumerates this object,
+    and the result records this same object as its scope's family, so a result
+    cannot name a family it did not search.
+    """
+
+    alphabet: tuple
+    max_length: int
+
+    def words(self):
+        for length in range(self.max_length + 1):
+            yield from itertools.product(self.alphabet, repeat=length)
+
+    def __len__(self) -> int:
+        return sum(
+            len(self.alphabet) ** length for length in range(self.max_length + 1)
+        )
+
+
 @dataclasses.dataclass(frozen=True)
 class ComparisonScope:
     contract_environment: object
@@ -703,8 +731,7 @@ def bounded_compare(
     max_words: int | None = None,
     *,
     contract_environment: object,
-    observation_projection: str,
-    continuation_family: str,
+    observation_projection: Callable[[object], object],
 ) -> Distinguished | NoWitnessWithinBound | SearchIncomplete:
     """S5.7's ComparisonResult, realized as a bounded exhaustive search.
 
@@ -719,26 +746,29 @@ def bounded_compare(
 
     This comparator covers words in an immutable unit-data domain. Each label
     advances time by one relative tick, so the timing bound is the continuation
-    length. The conformance fragment's comparisons return exact TotalObservation
-    values from both callbacks.
+    length.
+
+    Two of the scope's fields are records of what ran rather than declarations.
+    The family is built from `alphabet` and `bound` and is the object the
+    search enumerates, so a witness always lies inside the family the result
+    names. `observation_projection` is the profile's observation fields as a
+    function, applied here to each callback's reading before the two are
+    compared, and the scope records that function's name. The third,
+    `contract_environment`, is the profile's declaration: this comparator
+    receives residuals as callbacks and cannot execute an environment, so it
+    checks that one was declared and records it, and claims nothing further
+    about it.
     """
     if contract_environment is None or (
         type(contract_environment) is str
         and (not contract_environment.strip() or contract_environment == "undeclared")
     ):
         raise InvalidComparisonRequest("contract_environment must be declared")
-    if (
-        type(observation_projection) is not str
-        or not observation_projection.strip()
-        or observation_projection == "undeclared"
-    ):
-        raise InvalidComparisonRequest("observation_projection must be declared")
-    if (
-        type(continuation_family) is not str
-        or not continuation_family.strip()
-        or continuation_family == "undeclared"
-    ):
-        raise InvalidComparisonRequest("continuation_family must be declared")
+    if not callable(observation_projection):
+        raise InvalidComparisonRequest(
+            "observation_projection must be the profile's projection function, "
+            f"got {_type_identity(observation_projection)}"
+        )
 
     if type(bound) is not UnitDataUnitAdvanceBound:
         raise InvalidComparisonRequest(
@@ -770,61 +800,69 @@ def bounded_compare(
     if len(set(alphabet_tuple)) != len(alphabet_tuple):
         raise InvalidComparisonRequest("alphabet elements must be pairwise distinct")
 
+    family = AllWordsThroughBound(alphabet=alphabet_tuple, max_length=max_length)
     scope = ComparisonScope(
         contract_environment=contract_environment,
-        observation_projection=observation_projection,
-        continuation_family=continuation_family,
+        observation_projection=_projection_name(observation_projection),
+        continuation_family=family,
         bound=bound,
         exclusions=(),
     )
-    domain_size = sum(len(alphabet_tuple) ** length for length in range(max_length + 1))
+    domain_size = len(family)
     words_enumerated = 0
 
-    for length in range(max_length + 1):
-        for word in itertools.product(alphabet_tuple, repeat=length):
-            if max_words is not None and words_enumerated == max_words:
-                return SearchIncomplete(
-                    scope=scope,
-                    reason="WordBudgetExhausted",
-                    partial_search_receipt=PartialSearchReceipt(
-                        PartialCoverage(
-                            searched=max_words,
-                            not_searched=domain_size - max_words,
-                        )
-                    ),
-                )
-            ru = residual_u(word)
-            rv = residual_v(word)
-            try:
-                ru_encoding = _admitted_observation_encoding(ru)
-            except ValueError as exc:
-                raise InvalidComparisonRequest(
-                    "left residual callback returned an observation outside the "
-                    f"admitted domain: {_type_identity(ru)}"
-                ) from exc
-            try:
-                rv_encoding = _admitted_observation_encoding(rv)
-            except ValueError as exc:
-                raise InvalidComparisonRequest(
-                    "right residual callback returned an observation outside the "
-                    f"admitted domain: {_type_identity(rv)}"
-                ) from exc
-            words_enumerated += 1
-            if ru_encoding != rv_encoding:
-                return Distinguished(
-                    scope=scope,
-                    witness=word,
-                    left_observation=ru,
-                    right_observation=rv,
-                )
+    for word in family.words():
+        if max_words is not None and words_enumerated == max_words:
+            return SearchIncomplete(
+                scope=scope,
+                reason="WordBudgetExhausted",
+                partial_search_receipt=PartialSearchReceipt(
+                    PartialCoverage(
+                        searched=max_words,
+                        not_searched=domain_size - max_words,
+                    )
+                ),
+            )
+        ru = observation_projection(residual_u(word))
+        rv = observation_projection(residual_v(word))
+        try:
+            ru_encoding = _admitted_observation_encoding(ru)
+        except ValueError as exc:
+            raise InvalidComparisonRequest(
+                "left residual callback returned an observation outside the "
+                f"admitted domain: {_type_identity(ru)}"
+            ) from exc
+        try:
+            rv_encoding = _admitted_observation_encoding(rv)
+        except ValueError as exc:
+            raise InvalidComparisonRequest(
+                "right residual callback returned an observation outside the "
+                f"admitted domain: {_type_identity(rv)}"
+            ) from exc
+        words_enumerated += 1
+        if ru_encoding != rv_encoding:
+            return Distinguished(
+                scope=scope,
+                witness=word,
+                left_observation=ru,
+                right_observation=rv,
+            )
     return NoWitnessWithinBound(
         scope=scope,
         exhaustive_search_receipt=ExhaustiveSearchReceipt(
             words_enumerated=words_enumerated,
-            max_length=max_length,
-            alphabet=alphabet_tuple,
+            max_length=family.max_length,
+            alphabet=family.alphabet,
         ),
     )
+
+
+def _projection_name(projection: Callable[[object], object]) -> str:
+    """Name the projection from the object applied, never from a label."""
+    name = getattr(projection, "__name__", None) or getattr(
+        projection, "__qualname__", None
+    )
+    return name if type(name) is str and name else _type_identity(projection)
 
 
 # -- S5.5-S5.6: quotient / gate projection -----------------------------------

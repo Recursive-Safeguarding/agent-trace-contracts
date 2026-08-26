@@ -23,10 +23,12 @@ from rs_metalang_ref.monitor import (
 )
 from rs_metalang_ref.obligations import OccurrenceStatus
 from rs_metalang_ref.residual import (
+    AllWordsThroughBound,
     InvalidComparisonRequest,
     NoWitnessWithinBound,
     UnitDataUnitAdvanceBound,
     bounded_compare,
+    exact_observation,
 )
 from rs_metalang_ref.robust import AmbiguitySet
 from rs_metalang_ref.verdict import Mode, Summary, VerdictObject
@@ -873,26 +875,36 @@ def test_bounded_compare_refuses_omitted_scope_before_search():
 
 
 @pytest.mark.parametrize(
-    "scope_override",
+    ("scope_override", "invalid_field"),
     [
-        pytest.param({"contract_environment": "undeclared"}, id="contract-environment"),
-        pytest.param({"observation_projection": ""}, id="observation-projection"),
-        pytest.param({"continuation_family": ""}, id="continuation-family"),
+        pytest.param(
+            {"contract_environment": "undeclared"},
+            "contract_environment",
+            id="contract-environment",
+        ),
+        pytest.param(
+            {"observation_projection": "project_summary_mode"},
+            "observation_projection",
+            id="projection-named-not-supplied",
+        ),
+        pytest.param(
+            {"observation_projection": None},
+            "observation_projection",
+            id="projection-missing",
+        ),
     ],
 )
-def test_bounded_compare_refuses_undeclared_scope_before_search(scope_override):
+def test_bounded_compare_refuses_an_unusable_scope_before_search(
+    scope_override, invalid_field
+):
     scope = {
         "contract_environment": "C",
-        "observation_projection": VerdictObject.__name__,
-        "continuation_family": "all-words-through-declared-bound",
+        "observation_projection": exact_observation,
     }
     scope.update(scope_override)
     left = SingleClauseMonitor(_spec())
     right = SingleClauseMonitor(_spec())
 
-    invalid_field = next(
-        field for field, value in scope_override.items() if value in {"", "undeclared"}
-    )
     with pytest.raises(InvalidComparisonRequest, match=invalid_field):
         bounded_compare(
             _stateful_residual(left),
@@ -916,14 +928,17 @@ def test_bounded_compare_accepts_a_declared_scope():
         alphabet=("a",),
         bound=UnitDataUnitAdvanceBound(continuation_length=0),
         contract_environment="C",
-        observation_projection=VerdictObject.__name__,
-        continuation_family="all-words-through-declared-bound",
+        observation_projection=exact_observation,
     )
 
     assert isinstance(result, NoWitnessWithinBound)
     assert result.scope.contract_environment == "C"
-    assert result.scope.observation_projection == VerdictObject.__name__
-    assert result.scope.continuation_family == "all-words-through-declared-bound"
+    # Both recorded from what ran: the projection applied, and the family
+    # enumerated.
+    assert result.scope.observation_projection == "exact_observation"
+    assert result.scope.continuation_family == AllWordsThroughBound(
+        alphabet=("a",), max_length=0
+    )
     assert left.tick == 0
     assert right.tick == 0
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from rs_metalang_ref.residual import (
+    exact_observation,
     Distinguished,
     InvalidComparisonRequest,
     NoWitnessWithinBound,
@@ -40,8 +41,7 @@ def test_s5_zero_continuation_length_searches_the_empty_word_only():
         alphabet=("approval",),
         bound=bound,
         contract_environment="C",
-        observation_projection="identity[str]",
-        continuation_family="all-words-through-declared-bound",
+        observation_projection=exact_observation,
     )
 
     assert isinstance(result, NoWitnessWithinBound)
@@ -62,8 +62,7 @@ def test_s5_witness_at_length_one_still_distinguishes():
         alphabet=("approval",),
         bound=UnitDataUnitAdvanceBound(continuation_length=1),
         contract_environment="C",
-        observation_projection="identity[str]",
-        continuation_family="all-words-through-declared-bound",
+        observation_projection=exact_observation,
     )
 
     assert isinstance(result, Distinguished)

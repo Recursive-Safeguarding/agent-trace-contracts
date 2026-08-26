@@ -13,6 +13,7 @@ implemented.
 from __future__ import annotations
 
 import dataclasses
+import inspect
 
 import pytest
 
@@ -25,6 +26,8 @@ from rs_metalang_ref.firewall import (
     typecheck,
 )
 from rs_metalang_ref.residual import (
+    AllWordsThroughBound,
+    exact_observation,
     ComparisonScope,
     Distinguished,
     ExhaustiveSearchReceipt,
@@ -56,6 +59,114 @@ def _unreachable_residual(word):
     raise AssertionError(
         "bounded_compare must not run any search for an invalid request"
     )
+
+
+# -- ComparisonScope records what the comparison executed -------------------
+
+
+def test_s5_bounded_compare_takes_no_declared_continuation_family():
+    # The family is what the comparator enumerates, so there is no argument
+    # for naming a different one.
+    parameters = inspect.signature(bounded_compare).parameters
+    assert "continuation_family" not in parameters
+
+
+def test_s5_the_scope_family_holds_every_word_the_search_may_return():
+    def left(word):
+        return "left" if word == ("approval",) else "same"
+
+    def right(word):
+        return "right" if word == ("approval",) else "same"
+
+    result = bounded_compare(
+        left,
+        right,
+        alphabet=("approval", "Complete"),
+        bound=UnitDataUnitAdvanceBound(continuation_length=2),
+        contract_environment="C",
+        observation_projection=exact_observation,
+    )
+
+    assert isinstance(result, Distinguished)
+    family = result.scope.continuation_family
+    # The witness the result names is inside the family the result claims.
+    assert result.witness in tuple(family.words())
+    assert family.alphabet == ("approval", "Complete")
+    assert family.max_length == 2
+    assert len(family) == 7
+
+
+def test_s5_the_scope_projection_is_the_one_the_comparison_applied():
+    def summary_only(observation):
+        return observation[0]
+
+    def left(word):
+        return ("same", "left")
+
+    def right(word):
+        return ("same", "right")
+
+    # The declared projection reads the first field only, where the two
+    # residuals agree, so the comparison completes with no witness.
+    result = bounded_compare(
+        left,
+        right,
+        alphabet=("a",),
+        bound=UnitDataUnitAdvanceBound(continuation_length=1),
+        contract_environment="C",
+        observation_projection=summary_only,
+    )
+    assert isinstance(result, NoWitnessWithinBound)
+    assert result.scope.observation_projection == "summary_only"
+
+    # Reading both fields separates them, so a projection cannot be a label
+    # for something the comparison did not do.
+    result = bounded_compare(
+        left,
+        right,
+        alphabet=("a",),
+        bound=UnitDataUnitAdvanceBound(continuation_length=1),
+        contract_environment="C",
+        observation_projection=exact_observation,
+    )
+    assert isinstance(result, Distinguished)
+    assert result.scope.observation_projection == "exact_observation"
+
+
+def test_s5_distinguished_records_the_projected_readings_it_compared():
+    def summary_only(observation):
+        return observation[0]
+
+    def left(word):
+        return ("left", "shared")
+
+    def right(word):
+        return ("right", "shared")
+
+    result = bounded_compare(
+        left,
+        right,
+        alphabet=("a",),
+        bound=UnitDataUnitAdvanceBound(continuation_length=0),
+        contract_environment="C",
+        observation_projection=summary_only,
+    )
+
+    assert isinstance(result, Distinguished)
+    assert (result.left_observation, result.right_observation) == ("left", "right")
+
+
+def test_s5_bounded_compare_rejects_a_projection_it_cannot_apply():
+    with pytest.raises(InvalidComparisonRequest, match="observation_projection"):
+        bounded_compare(
+            _unreachable_residual,
+            _unreachable_residual,
+            alphabet=("a",),
+            bound=UnitDataUnitAdvanceBound(continuation_length=1),
+            contract_environment="C",
+            # A label for the profile's observation fields, not the fields.
+            observation_projection="project_summary_mode",
+        )
 
 
 # -- ComparisonScope: frozen dataclass, exactly the five specification fields -----
@@ -129,8 +240,7 @@ def test_s5_bounded_compare_partial_coverage_reconciles_with_the_declared_family
         bound=UnitDataUnitAdvanceBound(continuation_length=2),
         max_words=3,
         contract_environment="C",
-        observation_projection="identity[str]",
-        continuation_family="all-words-through-declared-bound",
+        observation_projection=exact_observation,
     )
 
     coverage = result.partial_search_receipt.partial_coverage
@@ -228,15 +338,14 @@ def test_s5_bounded_compare_no_witness_returns_structured_exhaustive_receipt_wit
         alphabet=("approval", "Complete"),
         bound=UnitDataUnitAdvanceBound(continuation_length=2),
         contract_environment="C",
-        observation_projection="identity[str]",
-        continuation_family="all-words-through-declared-bound",
+        observation_projection=exact_observation,
     )
 
     assert isinstance(result, NoWitnessWithinBound)
     assert isinstance(result.scope, ComparisonScope)
     assert result.scope.bound == UnitDataUnitAdvanceBound(continuation_length=2)
     assert result.scope.exclusions == ()
-    assert isinstance(result.scope.continuation_family, str)
+    assert isinstance(result.scope.continuation_family, AllWordsThroughBound)
     assert isinstance(result.scope.observation_projection, str)
 
     receipt = result.exhaustive_search_receipt
@@ -261,8 +370,7 @@ def test_s5_bounded_compare_distinguished_carries_a_scope():
         alphabet=("a",),
         bound=UnitDataUnitAdvanceBound(continuation_length=1),
         contract_environment="C",
-        observation_projection="identity[str]",
-        continuation_family="all-words-through-declared-bound",
+        observation_projection=exact_observation,
     )
 
     assert isinstance(result, Distinguished)
@@ -286,8 +394,7 @@ def test_s5_bounded_compare_word_budget_exhausted_returns_search_incomplete_with
         bound=UnitDataUnitAdvanceBound(continuation_length=2),
         max_words=3,
         contract_environment="C",
-        observation_projection="identity[str]",
-        continuation_family="all-words-through-declared-bound",
+        observation_projection=exact_observation,
     )
 
     assert isinstance(result, SearchIncomplete)
@@ -324,8 +431,7 @@ def test_s5_bounded_compare_max_words_covering_the_full_domain_returns_no_witnes
         bound=UnitDataUnitAdvanceBound(continuation_length=2),
         max_words=3,
         contract_environment="C",
-        observation_projection="identity[str]",
-        continuation_family="all-words-through-declared-bound",
+        observation_projection=exact_observation,
     )
 
     assert isinstance(result, NoWitnessWithinBound)
@@ -342,8 +448,7 @@ def test_s5_bounded_compare_max_words_none_is_still_valid_and_unbudgeted():
         bound=UnitDataUnitAdvanceBound(continuation_length=2),
         max_words=None,
         contract_environment="C",
-        observation_projection="identity[str]",
-        continuation_family="all-words-through-declared-bound",
+        observation_projection=exact_observation,
     )
     assert isinstance(result, NoWitnessWithinBound)
 
@@ -360,8 +465,7 @@ def test_s5_bounded_compare_zero_max_words_raises_invalid_comparison_request():
             bound=UnitDataUnitAdvanceBound(continuation_length=2),
             max_words=0,
             contract_environment="C",
-            observation_projection="TotalObservation_C",
-            continuation_family="all-words-through-declared-bound",
+            observation_projection=exact_observation,
         )
 
 
@@ -374,8 +478,7 @@ def test_s5_bounded_compare_negative_max_words_raises_invalid_comparison_request
             bound=UnitDataUnitAdvanceBound(continuation_length=2),
             max_words=-1,
             contract_environment="C",
-            observation_projection="TotalObservation_C",
-            continuation_family="all-words-through-declared-bound",
+            observation_projection=exact_observation,
         )
 
 
@@ -388,8 +491,7 @@ def test_s5_bounded_compare_float_max_words_raises_invalid_comparison_request():
             bound=UnitDataUnitAdvanceBound(continuation_length=2),
             max_words=2.5,
             contract_environment="C",
-            observation_projection="TotalObservation_C",
-            continuation_family="all-words-through-declared-bound",
+            observation_projection=exact_observation,
         )
 
 
@@ -402,8 +504,7 @@ def test_s5_bounded_compare_string_max_words_raises_invalid_comparison_request()
             bound=UnitDataUnitAdvanceBound(continuation_length=2),
             max_words="3",
             contract_environment="C",
-            observation_projection="TotalObservation_C",
-            continuation_family="all-words-through-declared-bound",
+            observation_projection=exact_observation,
         )
 
 
@@ -417,8 +518,7 @@ def test_s5_bounded_compare_bool_max_words_raises_invalid_comparison_request():
             bound=UnitDataUnitAdvanceBound(continuation_length=2),
             max_words=True,
             contract_environment="C",
-            observation_projection="TotalObservation_C",
-            continuation_family="all-words-through-declared-bound",
+            observation_projection=exact_observation,
         )
 
 

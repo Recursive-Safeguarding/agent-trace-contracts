@@ -21,6 +21,7 @@ from pathlib import Path
 import pytest
 from rs_metalang_ref.obligations import OccurrenceStatus
 from rs_metalang_ref.residual import (
+    AllWordsThroughBound,
     Disabled,
     DisabledReason,
     Distinguished,
@@ -38,7 +39,7 @@ from rs_capsule.capsule import (
     source_observation,
 )
 from rs_capsule.cards import open_obligation_card, truncation_card
-from rs_capsule.profile import build_profile
+from rs_capsule.profile import build_profile, project_summary_mode
 
 CAPSULE_RESULT_FIELDS = frozenset(
     {
@@ -267,11 +268,12 @@ def test_observe_returns_a_total_observation(profile, prefix):
 @pytest.mark.parametrize(
     "card_factory", [lambda: truncation_card(budget=1), open_obligation_card]
 )
-def test_transformed_residual_is_iterated_step_then_observe_then_project(
+def test_transformed_residual_is_iterated_step_then_observe(
     profile, prefix, card_factory
 ):
     """The definitional test: `card_observation` is
-    O_P(observe_P(step_P*(initialise_P(h(u), E_P(u)), w))), word by word.
+    observe_P(step_P*(initialise_P(h(u), E_P(u)), w)), word by word. The
+    profile's projection is applied by the comparison, not here.
 
     This is what forbids the capsule from quietly computing the card side
     from the source monitor instead of from the transformed state.
@@ -290,8 +292,7 @@ def test_transformed_residual_is_iterated_step_then_observe_then_project(
         configuration = interface.initialise(term, environment)
         for label in word:
             configuration = interface.step(configuration, label)
-        observed = interface.observe(configuration).contract_observation
-        expected = (observed.summary, observed.mode)
+        expected = interface.observe(configuration)
 
         assert card_observation(profile, card, prefix, word) == expected, word
 
@@ -306,8 +307,10 @@ def test_default_profile_projects_observations_to_summary_and_mode(profile, pref
     configuration = interface.initialise(term, environment)
     card_total_observation = interface.observe(configuration)
 
-    source_projected = source_observation(profile, prefix, ())
-    card_projected = card_observation(profile, card, prefix, ())
+    source_projected = project_summary_mode(source_observation(profile, prefix, ()))
+    card_projected = project_summary_mode(
+        card_observation(profile, card, prefix, ())
+    )
     source_expected_projection = (
         source_total_observation.contract_observation.summary,
         source_total_observation.contract_observation.mode,
@@ -339,8 +342,10 @@ def test_declared_projection_agrees_on_the_empty_continuation(profile, prefix):
     candidates, and every witness below is therefore a real continuation.
     """
     for card in (truncation_card(budget=1), open_obligation_card()):
-        assert source_observation(profile, prefix, ()) == card_observation(
-            profile, card, prefix, ()
+        assert project_summary_mode(
+            source_observation(profile, prefix, ())
+        ) == project_summary_mode(
+            card_observation(profile, card, prefix, ())
         ), f"{card.card_id} disagrees before any continuation step"
 
 
@@ -379,11 +384,11 @@ def test_the_witness_is_replayable_through_the_profile(profile, prefix):
 
     for _ in range(2):
         assert (
-            source_observation(profile, prefix, witness)
+            project_summary_mode(source_observation(profile, prefix, witness))
             == result.comparison.left_observation
         )
         assert (
-            card_observation(profile, card, prefix, witness)
+            project_summary_mode(card_observation(profile, card, prefix, witness))
             == result.comparison.right_observation
         )
 
@@ -477,9 +482,20 @@ def test_every_result_carries_run_metadata_and_comparison_scope(profile, card_fa
         "at the exact project_summary_mode (Summary, Mode) projection"
         in result.summary
     )
-    assert (
-        result.comparison.scope.continuation_family
-        == "all-words-through-declared-bound"
+    # The scope records the family the search enumerated, not a label for it,
+    # and the run metadata's label describes that same family.
+    family = result.comparison.scope.continuation_family
+    assert family == AllWordsThroughBound(
+        alphabet=profile.continuation_alphabet,
+        max_length=profile.comparison_bound.continuation_length,
+    )
+    assert result.run_metadata["continuation_family"] == (
+        "all-words-through-declared-bound"
+    )
+    assert tuple(family.words()) == tuple(
+        word
+        for length in range(profile.comparison_bound.continuation_length + 1)
+        for word in itertools.product(profile.continuation_alphabet, repeat=length)
     )
 
 
@@ -589,7 +605,10 @@ def test_public_json_keeps_the_exact_two_capsule_results():
             }
         },
         "observation_projection": "project_summary_mode",
-        "continuation_family": "all-words-through-declared-bound",
+        "continuation_family": {
+            "alphabet": ["approval", "Complete"],
+            "max_length": 2,
+        },
         "bound": {
             "continuation_length": 2,
             "data_domain": {

@@ -37,8 +37,12 @@ def build_source_prefix(profile: Profile, trace: Sequence[object]) -> SourcePref
 
 
 def source_observation(profile: Profile, prefix: SourcePrefix, word: Sequence[str]):
-    observation = profile.contract_environment.source_residual(prefix, word)
-    return project_summary_mode(observation)
+    """The source residual at `word`, before the profile's projection.
+
+    The comparison applies `project_summary_mode` itself, so this returns the
+    whole reading rather than the two fields the profile compares.
+    """
+    return profile.contract_environment.source_residual(prefix, word)
 
 
 def card_observation(
@@ -53,7 +57,7 @@ def card_observation(
     configuration = interface.initialise(term, environment)
     for label in word:
         configuration = interface.step(configuration, label)
-    return project_summary_mode(interface.observe(configuration))
+    return interface.observe(configuration)
 
 
 def _run_metadata(profile: Profile) -> Mapping[str, object]:
@@ -127,8 +131,7 @@ def run_capsule(
         alphabet=profile.continuation_alphabet,
         bound=profile.comparison_bound,
         contract_environment=profile.contract_environment,
-        observation_projection=run_metadata["observation_projection"],
-        continuation_family=run_metadata["continuation_family"],
+        observation_projection=project_summary_mode,
     )
     summary = _summary(profile, card, comparison)
     return CapsuleResult(

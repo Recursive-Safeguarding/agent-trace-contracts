@@ -17,6 +17,7 @@ from rs_metalang_ref.events import Complete, DomainEvent, ObservationCut, Termin
 from rs_metalang_ref.kleene import K3
 from rs_metalang_ref.monitor import SingleClauseMonitor
 from rs_metalang_ref.residual import (
+    exact_observation,
     DisabledReason,
     Distinguished,
     NoWitnessWithinBound,
@@ -223,8 +224,7 @@ def test_agreement_on_supplied_continuations_does_not_cover_an_unlisted_word():
         alphabet=("reveal",),
         bound=UnitDataUnitAdvanceBound(continuation_length=1),
         contract_environment="finite-agreement-example",
-        observation_projection="TotalObservation_C",
-        continuation_family="all-words-through-declared-bound",
+        observation_projection=exact_observation,
     )
 
     assert isinstance(larger_search, Distinguished)
@@ -337,8 +337,7 @@ def test_s5_demonstrated_failure_no_witness_then_distinguished():
         alphabet=("a",),
         bound=UnitDataUnitAdvanceBound(continuation_length=2),
         contract_environment="C",
-        observation_projection="identity[str]",
-        continuation_family="all-words-through-declared-bound",
+        observation_projection=exact_observation,
     )
     assert isinstance(bounded, NoWitnessWithinBound)
     assert bounded.scope.bound == UnitDataUnitAdvanceBound(continuation_length=2)
@@ -349,8 +348,7 @@ def test_s5_demonstrated_failure_no_witness_then_distinguished():
         alphabet=("a",),
         bound=UnitDataUnitAdvanceBound(continuation_length=3),
         contract_environment="C",
-        observation_projection="identity[str]",
-        continuation_family="all-words-through-declared-bound",
+        observation_projection=exact_observation,
     )
     assert isinstance(found, Distinguished)
     assert found.witness == ("a", "a", "a")
