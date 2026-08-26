@@ -77,21 +77,13 @@ def _conditional(oid: str, deadline: int, candidates=()) -> Occurrence:
     )
 
 
-@pytest.mark.parametrize(
-    "explicit_oids",
-    [
-        pytest.param(frozenset({"o1"}), id="explicit"),
-        pytest.param(frozenset(), id="generic"),
-    ],
-)
-def test_late_response_is_not_retained_as_conditional_candidate(explicit_oids):
-    """Both token-registration paths reject a response after the deadline."""
+def test_late_response_is_not_retained_as_conditional_candidate():
+    """Token registration rejects a response after the deadline."""
     occurrence = _conditional("o1", deadline=5)
     token = ResponseToken(
         rid="r6",
         response_tick=6,
         substitution={"x": "f"},
-        explicit_oids=explicit_oids,
     )
 
     register_response_token(token, {occurrence.oid: occurrence})
@@ -118,7 +110,6 @@ def test_simultaneous_conditional_activation_uses_canonical_order():
         rid="r4",
         response_tick=4,
         substitution={"x": "f"},
-        explicit_oids=frozenset({"o1", "o2"}),
     )
     later = _conditional("o1", deadline=9, candidates=(shared_token,))
     canonical = _conditional("o2", deadline=5, candidates=(shared_token,))

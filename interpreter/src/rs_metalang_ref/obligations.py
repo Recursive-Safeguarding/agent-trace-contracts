@@ -34,14 +34,11 @@ class OccurrenceStatus(Enum):
 
 @dataclasses.dataclass
 class ResponseToken:
-    """A response event's token r = <rid, p, t_r, explicit_oids,
-    broadcast_key, consumed> (S1.4)."""
+    """One response event, offered to the open duties it is eligible for."""
 
     rid: str
     response_tick: int
     substitution: dict
-    explicit_oids: frozenset = dataclasses.field(default_factory=frozenset)
-    broadcast_key: str | None = None
     consumed: bool = False
 
 
@@ -196,53 +193,15 @@ def _matches_binding(token: ResponseToken, occ: Occurrence) -> bool:
 
 
 def register_response_token(token: ResponseToken, all_occurrences: dict) -> None:
-    """Allocate one response token in the executable fragment.
+    """Allocate one response token over the complete eligible set.
 
-    Explicit alias references form a candidate set. The token discharges the
-    first eligible Open occurrence in the deterministic local order. If no
-    referenced occurrence is eligible, the token is reserved for each
-    referenced conditional occurrence. A generic token uses the same local
-    order over all eligible Open occurrences. Otherwise, the token remains a
-    candidate for each unconsumed conditional occurrence. The monitor does not
-    retract or reallocate a discharge.
+    The token settles the eligible open occurrence with the least canonical
+    key. Where none is eligible, it stays a candidate for every unconsumed
+    conditional occurrence it could later settle. The monitor does not retract
+    or reallocate a discharge, and no event data redirects the token: the
+    canonical key alone decides which duty it settles.
     """
     if token.consumed:
-        return
-
-    if token.explicit_oids:
-        referenced = sorted(
-            (
-                all_occurrences[oid]
-                for oid in token.explicit_oids
-                if oid in all_occurrences
-            ),
-            key=canonical_order_key,
-        )
-        eligible = [
-            occ
-            for occ in referenced
-            if occ.status is OccurrenceStatus.OPEN
-            and token.response_tick <= occ.deadline
-            and _matches_binding(token, occ)
-        ]
-        if eligible:
-            target = eligible[0]
-            token.consumed = True
-            target.response = token
-            target.status = OccurrenceStatus.DISCHARGED
-            return
-
-        for occ in referenced:
-            if (
-                occ.status
-                in (
-                    OccurrenceStatus.CONDITIONAL_OPEN,
-                    OccurrenceStatus.CONDITIONAL_EXPIRED,
-                )
-                and token.response_tick <= occ.deadline
-                and _matches_binding(token, occ)
-            ):
-                occ.candidates.append(token)
         return
 
     open_occurrences = [

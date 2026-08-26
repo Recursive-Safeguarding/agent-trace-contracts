@@ -361,12 +361,9 @@ class SingleClauseMonitor:
 
         trigger_match = None
         response_match = None
-        explicit_oids = frozenset()
         if isinstance(event, DomainEvent):
             trigger_match = self._project_match(event, self.spec.trigger_tag)
             response_match = self._project_match(event, self.spec.response_tag)
-            if response_match is not None:
-                explicit_oids = self._explicit_oids(event)
 
         # 2. Tick validation.
         tick = event.tick
@@ -394,7 +391,7 @@ class SingleClauseMonitor:
             if trigger_match is not None:
                 self._instantiate_trigger(event, tick, trigger_match)
             if response_match is not None:
-                self._register_response(event, tick, response_match, explicit_oids)
+                self._register_response(event, tick, response_match)
 
         # 9. Evaluate instantaneous clauses: none in this single-clause
         # engine beyond the response obligation itself.
@@ -480,18 +477,6 @@ class SingleClauseMonitor:
             projection[field] = value
         return projection
 
-    def _explicit_oids(self, event: DomainEvent) -> frozenset[str]:
-        if "discharges" not in event.fields:
-            return frozenset()
-        raw = event.fields["discharges"]
-        if not isinstance(raw, (tuple, list)):
-            raise InvalidBinding(
-                "discharges must be a tuple or list of non-empty strings"
-            )
-        if any(type(oid) is not str or not oid for oid in raw):
-            raise InvalidBinding("discharges must contain only non-empty strings")
-        return frozenset(raw)
-
     def _instantiate_trigger(
         self, event: DomainEvent, tick: int, substitution: dict[str, str]
     ) -> None:
@@ -515,13 +500,11 @@ class SingleClauseMonitor:
         event: DomainEvent,
         tick: int,
         substitution: dict[str, str],
-        explicit_oids: frozenset[str],
     ) -> None:
         token = ResponseToken(
             rid=event.event_id,
             response_tick=tick,
             substitution=dict(substitution),
-            explicit_oids=explicit_oids,
         )
         register_response_token(token, self.occurrences)
 

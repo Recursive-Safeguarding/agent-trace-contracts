@@ -7,6 +7,10 @@ public seam is `SingleClauseMonitor`.
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
+
 import pytest
 
 from rs_metalang_ref.contracts import (
@@ -213,6 +217,117 @@ def test_s1_linear_response_does_not_discharge_two():
     assert verdict.summary is Summary.VIOLATED
 
 
+def _ground_spec(bound: int, clause_id: str = "ground-c1") -> AfterClauseSpec:
+    return AfterClauseSpec(
+        clause_id=clause_id,
+        trigger_tag="export",
+        response_tag="approval",
+        binding_fields=(),
+        guard=GroundGuard("approval-required"),
+        bound=bound,
+        discharge=Linear(),
+    )
+
+
+def test_s1_a_response_field_named_discharges_does_not_pick_the_duty():
+    # The clause binds no event data, so both duties carry the same bindings
+    # and the response settles the one with the least canonical key: the
+    # tick-0 duty, due first. An event field cannot name a different target,
+    # because the core allocates by that key alone.
+    monitor = SingleClauseMonitor(_ground_spec(bound=2))
+    monitor.set_initial("approval-required", K3.T)
+
+    monitor.step(DomainEvent("e0", tick=0, tag="export"))
+    monitor.step(DomainEvent("e1", tick=1, tag="export"))
+    verdict = monitor.step(
+        DomainEvent("e2", tick=2, tag="approval", fields={"discharges": ("o2",)})
+    )
+
+    assert monitor.occurrences["o1"].status is OccurrenceStatus.DISCHARGED
+    assert monitor.occurrences["o2"].status is OccurrenceStatus.OPEN
+    assert (verdict.summary, verdict.mode) == (Summary.UNKNOWN, Mode.RUNNING)
+
+
+def test_s1_a_discharges_field_of_any_shape_is_ordinary_event_data():
+    # The core reserves no field name, so a value here changes nothing and is
+    # not a reason to refuse the event.
+    for value in (("o2",), "o2", 7, None, {"o2": 1}):
+        monitor = SingleClauseMonitor(_ground_spec(bound=2))
+        monitor.set_initial("approval-required", K3.T)
+        monitor.step(DomainEvent("e0", tick=0, tag="export"))
+        verdict = monitor.step(
+            DomainEvent("e1", tick=1, tag="approval", fields={"discharges": value})
+        )
+        assert monitor.occurrences["o1"].status is OccurrenceStatus.DISCHARGED
+        assert verdict.summary is Summary.UNKNOWN
+
+
+_SEED_DRIVER = """
+from rs_metalang_ref.contracts import AfterClauseSpec, GroundGuard, Linear
+from rs_metalang_ref.events import Complete, DomainEvent, TerminalEvent
+from rs_metalang_ref.kleene import K3
+from rs_metalang_ref.monitor import SingleClauseMonitor
+from rs_metalang_ref.obligations import OccurrenceStatus
+
+spec = AfterClauseSpec(
+    clause_id="ground-c1",
+    trigger_tag="export",
+    response_tag="approval",
+    binding_fields=(),
+    guard=GroundGuard("approval-required"),
+    bound=5,
+    discharge=Linear(),
+)
+monitor = SingleClauseMonitor(spec)
+monitor.set_initial("approval-required", K3.T)
+monitor.step(DomainEvent("e0", tick=0, tag="export"))
+monitor.step(DomainEvent("e1", tick=1, tag="export"))
+monitor.step(DomainEvent("e2", tick=2, tag="export"))
+monitor.step(DomainEvent("e3", tick=3, tag="approval"))
+verdict = monitor.step(TerminalEvent("e4", tick=4, kind=Complete()))
+discharged = sorted(
+    oid for oid, occ in monitor.occurrences.items()
+    if occ.status is OccurrenceStatus.DISCHARGED
+)
+print(verdict.summary.name + "|" + ",".join(discharged))
+"""
+
+
+def test_s1_allocation_is_the_same_under_every_hash_seed():
+    """One trace gives one verdict and one discharged duty, whatever the
+    interpreter's hash randomisation.
+
+    Three duties are open and one approval arrives, so the canonical key has
+    to pick the same single winner every run. PYTHONHASHSEED is read once at
+    interpreter start and cannot be varied inside a running process, so this
+    runs the trace in subprocesses under different seeds.
+
+    Two claims, in order: the seeds agree with each other, and what they agree
+    on is one discharge. An implementation that settled every eligible duty
+    would satisfy the first and fail the second.
+    """
+    env = dict(os.environ)
+    env.pop("PYTHONHASHSEED", None)
+    results = {}
+    for seed in range(6):
+        completed = subprocess.run(
+            [sys.executable, "-c", _SEED_DRIVER],
+            env={**env, "PYTHONHASHSEED": str(seed)},
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        results[seed] = completed.stdout.strip()
+
+    distinct = sorted(set(results.values()))
+    assert len(distinct) == 1, f"outcome varies with PYTHONHASHSEED: {results}"
+
+    summary, discharged = distinct[0].split("|")
+    discharged_oids = [oid for oid in discharged.split(",") if oid]
+    assert discharged_oids == ["o1"]
+    assert summary == Summary.VIOLATED.name
+
+
 @pytest.mark.parametrize(
     ("occurrence_fields", "expected_oid"),
     (
@@ -307,14 +422,10 @@ def test_s1_worked_example_export_sensitive_approval():
     assert occ.deadline == 11
     assert monitor.current_verdict().summary is Summary.UNKNOWN
 
-    # Tick 11: approval(f, discharges=o1), explicitly reserved, on time
-    # (11 == D). The guard is still unknown, so boundary expiry converts the
+    # Tick 11: approval(f), on time (11 == D), and reserved for the
+    # occurrence while its guard is unknown. Boundary expiry then converts the
     # occurrence to ConditionalExpired, not a breach.
-    monitor.step(
-        DomainEvent(
-            "e11", tick=11, tag="approval", fields={"x": "f", "discharges": ["o1"]}
-        )
-    )
+    monitor.step(DomainEvent("e11", tick=11, tag="approval", fields={"x": "f"}))
     occ = monitor.occurrences["o1"]
     assert occ.status is OccurrenceStatus.CONDITIONAL_EXPIRED
     assert len(occ.candidates) == 1
@@ -533,16 +644,12 @@ def test_s1_same_event_trigger_then_response_can_discharge_new_occurrence():
     assert verdict.summary is Summary.UNKNOWN
 
 
-def test_s1_explicit_reference_wrong_binding_does_not_discharge_conditional():
+def test_s1_response_for_another_binding_does_not_reserve_a_conditional():
     monitor = SingleClauseMonitor(_binding_spec())
     monitor.set_initial("Sensitive(f)", K3.U)
 
     monitor.step(DomainEvent("e0", tick=0, tag="export", fields={"x": "f"}))
-    monitor.step(
-        DomainEvent(
-            "e1", tick=1, tag="approval", fields={"x": "g", "discharges": ["o1"]}
-        )
-    )
+    monitor.step(DomainEvent("e1", tick=1, tag="approval", fields={"x": "g"}))
     verdict = monitor.step(
         DomainEvent(
             "e2", tick=2, tag="Observation", observations={"Sensitive(f)": K3.T}
@@ -572,23 +679,6 @@ def test_s1_non_string_bound_value_is_rejected_before_state_change():
     assert monitor.tick == -1
     assert monitor.occurrences == {}
     assert "Other" not in monitor.epistemic
-
-
-def test_s1_invalid_discharges_metadata_is_rejected_before_state_change():
-    monitor = SingleClauseMonitor(_binding_spec())
-    monitor.set_initial("Sensitive(f)", K3.T)
-    monitor.step(DomainEvent("e0", tick=0, tag="export", fields={"x": "f"}))
-    before = monitor.current_verdict()
-
-    with pytest.raises(InvalidBinding):
-        monitor.step(
-            DomainEvent(
-                "e1", tick=1, tag="approval", fields={"x": "f", "discharges": "o1"}
-            )
-        )
-
-    assert monitor.tick == 0
-    assert monitor.current_verdict() == before
 
 
 def test_s1_guard_value_for_requires_the_exact_projected_substitution():
@@ -624,14 +714,6 @@ def test_s1_guard_value_for_requires_the_exact_projected_substitution():
             response_tag="approval",
             binding_fields=("x", "y"),
             guard=BoundUnaryGuard("Sensitive", "x"),
-            bound=1,
-        ),
-        lambda: AfterClauseSpec(
-            clause_id="c1",
-            trigger_tag="export",
-            response_tag="approval",
-            binding_fields=("discharges",),
-            guard=BoundUnaryGuard("Sensitive", "discharges"),
             bound=1,
         ),
         lambda: AfterClauseSpec(

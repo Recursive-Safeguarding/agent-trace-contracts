@@ -28,7 +28,6 @@ from rs_metalang_ref.obligations import (
 )
 
 _OIDS = tuple(f"o{index}" for index in range(10))
-_MISSING_OIDS = tuple(f"missing{index}" for index in range(3))
 _CLAUSE_IDS = ("c0", "c1", "c2")
 _GENERATED_STATUSES = (
     OccurrenceStatus.OPEN,
@@ -64,7 +63,7 @@ def _occurrence(
 
 
 @st.composite
-def _allocation_case(draw, *, explicit: bool):
+def _allocation_case(draw):
     count = draw(st.integers(min_value=1, max_value=7))
     oids = draw(
         st.lists(
@@ -91,22 +90,10 @@ def _allocation_case(draw, *, explicit: bool):
     occurrences = {oid: records[oid] for oid in insertion_order}
     response_tick = draw(st.integers(min_value=0, max_value=16))
 
-    if explicit:
-        targets = draw(
-            st.sets(
-                st.sampled_from(tuple(oids) + _MISSING_OIDS),
-                min_size=1,
-                max_size=count + len(_MISSING_OIDS),
-            )
-        )
-    else:
-        targets = set()
-
     token = ResponseToken(
         rid="response",
         response_tick=response_tick,
         substitution={"x": "f"},
-        explicit_oids=frozenset(targets),
     )
     return occurrences, token
 
@@ -130,31 +117,8 @@ def _newly_discharged(before, occurrences):
 
 
 @_PROPERTY_SETTINGS
-@given(_allocation_case(explicit=True))
-def test_explicit_linear_registration_uses_literal_specification_order(case):
-    occurrences, token = case
-    before = {oid: occurrence.status for oid, occurrence in occurrences.items()}
-    eligible = [
-        occurrence
-        for oid, occurrence in occurrences.items()
-        if oid in token.explicit_oids
-        and occurrence.status is OccurrenceStatus.OPEN
-        and token.response_tick <= occurrence.deadline
-    ]
-    expected = min(eligible, key=_literal_specification_key).oid if eligible else None
-
-    register_response_token(token, occurrences)
-
-    newly_discharged = _newly_discharged(before, occurrences)
-    assert len(newly_discharged) <= 1
-    assert newly_discharged == ([] if expected is None else [expected])
-    assert all(oid in token.explicit_oids for oid in newly_discharged)
-    assert token.consumed is (expected is not None)
-
-
-@_PROPERTY_SETTINGS
-@given(_allocation_case(explicit=False))
-def test_generic_linear_registration_uses_literal_specification_order(case):
+@given(_allocation_case())
+def test_linear_registration_uses_literal_specification_order(case):
     occurrences, token = case
     before = {oid: occurrence.status for oid, occurrence in occurrences.items()}
     eligible = [
@@ -184,13 +148,12 @@ def _allocation_snapshot(occurrences):
     }
 
 
-@pytest.mark.parametrize("explicit", [False, True], ids=["generic", "explicit"])
 @pytest.mark.parametrize(
     "remaining_status",
     [OccurrenceStatus.OPEN, OccurrenceStatus.CONDITIONAL_OPEN],
     ids=["second-open", "conditional-candidate"],
 )
-def test_consumed_token_registration_is_idempotent(explicit, remaining_status):
+def test_consumed_token_registration_is_idempotent(remaining_status):
     first = _occurrence(
         "o1",
         clause_id="c1",
@@ -210,7 +173,6 @@ def test_consumed_token_registration_is_idempotent(explicit, remaining_status):
         rid="r2",
         response_tick=2,
         substitution={"x": "f"},
-        explicit_oids=frozenset(occurrences) if explicit else frozenset(),
     )
 
     register_response_token(token, occurrences)

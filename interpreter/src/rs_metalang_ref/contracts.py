@@ -40,9 +40,6 @@ class InvalidBinding(ValueError):
     """A runtime event or direct guard query has an invalid binding."""
 
 
-_RESERVED_BINDING_FIELDS = frozenset({"discharges"})
-
-
 # -- discharge / abort dispositions (part of the `after` clause grammar) --
 
 
@@ -109,8 +106,6 @@ class AfterClauseSpec:
             raise InvalidAfterClauseSpec("binding_fields must not contain empty names")
         if len(set(self.binding_fields)) != len(self.binding_fields):
             raise InvalidAfterClauseSpec("binding_fields must not contain duplicates")
-        if any(field in _RESERVED_BINDING_FIELDS for field in self.binding_fields):
-            raise InvalidAfterClauseSpec("binding_fields must not contain reserved metadata names")
         if len(self.binding_fields) > 1:
             raise InvalidAfterClauseSpec("this executable fragment admits at most one binding field")
         if type(self.bound) is not int or self.bound < 0:
