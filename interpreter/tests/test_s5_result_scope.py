@@ -95,6 +95,50 @@ def test_s5_exhaustive_search_receipt_has_exactly_three_fields():
     ]
 
 
+def test_s5_search_incomplete_field_names_follow_appendix_b():
+    assert [field.name for field in dataclasses.fields(SearchIncomplete)] == [
+        "scope",
+        "reason",
+        "partial_search_receipt",
+    ]
+
+
+def test_s5_partial_coverage_rejects_a_negative_count():
+    with pytest.raises(InvalidComparisonRequest):
+        PartialCoverage(searched=-1, not_searched=4)
+    with pytest.raises(InvalidComparisonRequest):
+        PartialCoverage(searched=3, not_searched=-4)
+
+
+def test_s5_partial_coverage_rejects_a_count_that_is_not_a_whole_number():
+    # A coverage count is a number of words, so a label or a fraction of a
+    # word cannot reconcile with the declared finite family.
+    for bad in ("three", 3.0, True, None):
+        with pytest.raises(InvalidComparisonRequest):
+            PartialCoverage(searched=bad, not_searched=4)
+
+
+def test_s5_bounded_compare_partial_coverage_reconciles_with_the_declared_family():
+    def residual(word):
+        return "same"
+
+    result = bounded_compare(
+        residual,
+        residual,
+        alphabet=("a", "b"),
+        bound=UnitDataUnitAdvanceBound(continuation_length=2),
+        max_words=3,
+        contract_environment="C",
+        observation_projection="identity[str]",
+        continuation_family="all-words-through-declared-bound",
+    )
+
+    coverage = result.partial_search_receipt.partial_coverage
+    # The declared family holds 2**0 + 2**1 + 2**2 = 7 words, and every word
+    # is either searched or not searched.
+    assert coverage.searched + coverage.not_searched == 7
+
+
 def test_s5_partial_search_receipt_has_exactly_one_field():
     field_names = {field.name for field in dataclasses.fields(PartialSearchReceipt)}
     assert field_names == {"partial_coverage"}
@@ -158,8 +202,9 @@ def test_s5_search_incomplete_carries_scope_as_first_field():
     result = SearchIncomplete(scope, "WitnessSearchInterrupted", receipt)
     assert result.scope is scope
     assert result.reason == "WitnessSearchInterrupted"
-    assert result.incomplete_comparison_receipt is receipt
-    assert not hasattr(result, "partial_search_receipt")
+    # Appendix B names this field `partial_search_receipt`.
+    assert result.partial_search_receipt is receipt
+    assert not hasattr(result, "incomplete_comparison_receipt")
 
 
 def test_s5_untested_carries_scope_as_first_field():
@@ -249,7 +294,7 @@ def test_s5_bounded_compare_word_budget_exhausted_returns_search_incomplete_with
     assert isinstance(result.scope, ComparisonScope)
     assert result.reason == "WordBudgetExhausted"
 
-    receipt = result.incomplete_comparison_receipt
+    receipt = result.partial_search_receipt
     assert not isinstance(receipt, str)
     assert isinstance(receipt, PartialSearchReceipt)
 

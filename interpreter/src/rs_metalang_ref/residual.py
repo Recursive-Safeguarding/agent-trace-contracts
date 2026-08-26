@@ -634,8 +634,27 @@ class ExhaustiveSearchReceipt:
 
 @dataclasses.dataclass(frozen=True)
 class PartialCoverage:
-    searched: str | int
-    not_searched: str | int
+    """How much of the declared finite family a stopped search covered.
+
+    Both counts are numbers of words, so the two together reconcile with the
+    size of the declared family.
+    """
+
+    searched: int
+    not_searched: int
+
+    def __post_init__(self) -> None:
+        for name in ("searched", "not_searched"):
+            value = getattr(self, name)
+            if type(value) is not int:
+                raise InvalidComparisonRequest(
+                    f"{name} must be a whole number of words, "
+                    f"got {_type_identity(value)}"
+                )
+            if value < 0:
+                raise InvalidComparisonRequest(
+                    f"{name} must not be negative, got {value!r}"
+                )
 
 
 @dataclasses.dataclass(frozen=True)
@@ -667,7 +686,7 @@ class NoWitnessWithinBound:
 class SearchIncomplete:
     scope: ComparisonScope
     reason: str
-    incomplete_comparison_receipt: PartialSearchReceipt
+    partial_search_receipt: PartialSearchReceipt
 
 
 @dataclasses.dataclass(frozen=True)
@@ -767,7 +786,7 @@ def bounded_compare(
                 return SearchIncomplete(
                     scope=scope,
                     reason="WordBudgetExhausted",
-                    incomplete_comparison_receipt=PartialSearchReceipt(
+                    partial_search_receipt=PartialSearchReceipt(
                         PartialCoverage(
                             searched=max_words,
                             not_searched=domain_size - max_words,
