@@ -23,9 +23,16 @@ for ProvedEquivalent is not constructed here.
 
 `canonical_observation_digest`, `bounded_compare`, and
 `TotalizedLTS.agrees_on_supplied_continuations` are generic utilities over the
-documented encodable domain. The monitor-driven path is stricter:
-`monitor_residual` produces exact `TotalObservation` roots, and
-conformance-fragment comparisons compare exact `TotalObservation` values only.
+documented encodable domain.
+
+`monitor_residual` returns a `TotalObservation`: the whole reading at a word.
+What a comparison compares is narrower, and the deployment profile decides how
+much narrower. The profile fixes the observation fields as a projection
+function, `bounded_compare` applies it to each residual, and the two projected
+readings are what it compares. The worked example's profile reads two fields,
+`(Summary, Mode)`, so agreement there is agreement on those two fields and
+says nothing about the rest of the observation. Passing
+`exact_observation` as the projection is the case where the two coincide.
 """
 
 from __future__ import annotations
@@ -507,8 +514,9 @@ class TotalizedLTS:
 
         The result covers exactly the words supplied, which is weaker than
         the universally quantified congruence of S5.4: agreement on a finite
-        set of supplied words is not a merge certificate. Comparisons inside
-        the conformance fragment use exact TotalObservation residuals.
+        set of supplied words is not a merge certificate. This helper compares
+        whole residual values; a profile that reads fewer fields belongs in
+        `bounded_compare`, which applies the profile's projection.
         """
         for word in continuations:
             left_observation = self.residual(u_state, word)
