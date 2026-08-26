@@ -135,6 +135,57 @@ def test_restore_open_state_card_returns_a_complete_running_monitor():
     assert tuple(monitor.occurrences) == ("o2",)
 
 
+def test_restore_open_state_card_expires_a_duty_the_restart_clock_has_passed():
+    # The card retains the tick-0 export and nothing else, and the run
+    # restarts at clock 3. Replaying that export raises a duty due at tick 2,
+    # which the restart clock has already passed, so the duty is unmet: it
+    # cannot come back open on the far side of its own deadline.
+    monitor = _restore_open_state_card(
+        retained_events=(
+            DomainEvent(event_id="retained-export", tick=0, tag="export"),
+        ),
+        current_tick=3,
+        open_occurrences=(),
+    )
+
+    assert monitor.tick == 3
+    assert [occurrence.status for occurrence in monitor.occurrences.values()] == [
+        OccurrenceStatus.BREACHED
+    ]
+    assert monitor.current_verdict().summary is Summary.VIOLATED
+
+
+def test_restore_open_state_card_expires_a_duty_due_on_the_restart_clock():
+    # Boundary expiry: a duty due exactly at the restart clock is unmet too.
+    monitor = _restore_open_state_card(
+        retained_events=(
+            DomainEvent(event_id="retained-export", tick=1, tag="export"),
+        ),
+        current_tick=3,
+        open_occurrences=(),
+    )
+
+    assert [occurrence.status for occurrence in monitor.occurrences.values()] == [
+        OccurrenceStatus.BREACHED
+    ]
+    assert monitor.current_verdict().summary is Summary.VIOLATED
+
+
+def test_restore_open_state_card_keeps_a_duty_the_restart_clock_has_not_reached():
+    monitor = _restore_open_state_card(
+        retained_events=(
+            DomainEvent(event_id="retained-export", tick=2, tag="export"),
+        ),
+        current_tick=3,
+        open_occurrences=(),
+    )
+
+    assert [occurrence.status for occurrence in monitor.occurrences.values()] == [
+        OccurrenceStatus.OPEN
+    ]
+    assert monitor.current_verdict().summary is Summary.UNKNOWN
+
+
 def test_restore_open_state_card_accepts_the_initial_tick_for_an_empty_card():
     monitor = _restore_open_state_card(
         retained_events=(),

@@ -244,7 +244,11 @@ class SingleClauseMonitor:
         if occurrence_copy and monitor.guard_value_for({}) is not K3.T:
             raise ValueError("open_occurrences require a true restored guard")
 
-        monitor.tick = current_tick
+        # Advancing the restart clock applies the same expiry rules a step
+        # would: every duty whose deadline the restart clock has reached or
+        # passed is unmet. Assigning the tick alone would carry a duty back
+        # into the run on the far side of its own deadline.
+        monitor._advance_restart_clock(current_tick)
         if occurrence_copy:
             guard_key = monitor.guard_key_for({})
             monitor.occurrences = {
@@ -268,6 +272,12 @@ class SingleClauseMonitor:
             ]
             monitor._oid_counter = max(numbered) if numbered else 0
         return monitor
+
+    def _advance_restart_clock(self, current_tick: int) -> None:
+        """Move the clock to the restart reading, expiring what it passed."""
+        self.tick = current_tick
+        self._expire(current_tick, strict=True)
+        self._expire(current_tick, strict=False)
 
     def observe(self, key: str, value: K3, tick: int) -> None:
         if type(value) is not K3:
