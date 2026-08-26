@@ -6,19 +6,13 @@ import sys
 from enum import Enum
 from typing import Any
 
-from rs_metalang_ref.contracts import (
-    Breach,
-    Broadcast,
-    Indeterminate,
-    Linear,
-    WaiveIf,
-)
+from rs_metalang_ref.contracts import Breach, Linear
 
 from .capsule import SOURCE_TRACE, CapsuleResult, run_capsule
 from .cards import open_obligation_card, truncation_card
 from .profile import build_profile
 
-_TAGGED_CONTRACT_VARIANTS = (Linear, Broadcast, Breach, Indeterminate, WaiveIf)
+_TAGGED_CONTRACT_VARIANTS = (Linear, Breach)
 
 
 def _json_value(value: Any) -> Any:

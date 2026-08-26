@@ -18,7 +18,7 @@ sink must store the canonical continuation label, not a raw event record.
 from __future__ import annotations
 
 import rs_metalang_ref.residual as residual_module
-from rs_metalang_ref.contracts import AfterClauseSpec, BoundUnaryGuard, Linear
+from rs_metalang_ref.contracts import AfterClauseSpec, GroundGuard, Linear
 from rs_metalang_ref.events import Complete, DomainEvent, TerminalEvent, TickEvent
 from rs_metalang_ref.kleene import K3
 from rs_metalang_ref.monitor import SingleClauseMonitor
@@ -30,8 +30,8 @@ def _spec(bound: int = 2) -> AfterClauseSpec:
         clause_id="c1",
         trigger_tag="export",
         response_tag="approval",
-        binding_fields=("x",),
-        guard=BoundUnaryGuard("Sensitive", "x"),
+        binding_fields=(),
+        guard=GroundGuard("approval-required"),
         bound=bound,
         discharge=Linear(),
     )
@@ -46,8 +46,8 @@ def _halted_prefix(terminal_tick: int = 3, event_ids=("e0", "t0")):
     attempted label in the sink.
     """
     monitor = SingleClauseMonitor(_spec())
-    monitor.set_initial("Sensitive(f)", K3.T)
-    monitor.step(DomainEvent(event_ids[0], tick=0, tag="export", fields={"x": "f"}))
+    monitor.set_initial("approval-required", K3.T)
+    monitor.step(DomainEvent(event_ids[0], tick=0, tag="export"))
     monitor.step(TerminalEvent(event_ids[1], tick=terminal_tick, kind=Complete()))
     return monitor
 
@@ -139,7 +139,7 @@ def test_distinct_labels_still_distinguish_residuals():
     (a domain-event label, a tick label, a terminal label) stay apart.
     """
     domain = _sink(
-        monitor_residual(_halted_prefix(), [DomainEvent("a", tick=4, tag="export", fields={"x": "f"})])
+        monitor_residual(_halted_prefix(), [DomainEvent("a", tick=4, tag="export")])
     ).attempted
     tick = _sink(monitor_residual(_halted_prefix(), [TickEvent("b", tick=4)])).attempted
     terminal = _sink(

@@ -16,7 +16,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from rs_metalang_ref import obligations as obligations_module
-from rs_metalang_ref.contracts import AfterClauseSpec, BoundUnaryGuard, Linear
+from rs_metalang_ref.contracts import AfterClauseSpec, GroundGuard, Linear
 from rs_metalang_ref.events import TickEvent
 from rs_metalang_ref.kleene import K3
 from rs_metalang_ref.monitor import SingleClauseMonitor
@@ -49,7 +49,7 @@ def _occurrence(
     trigger_tick: int,
     deadline: int,
     status: OccurrenceStatus,
-    guard_key: str = "Sensitive(f)",
+    guard_key: str = "approval-required",
 ) -> Occurrence:
     return Occurrence(
         oid=oid,
@@ -192,13 +192,13 @@ def test_white_box_no_sort_without_eligible_occurrences(
             clause_id="c1",
             trigger_tag="export",
             response_tag="approval",
-            binding_fields=("x",),
-            guard=BoundUnaryGuard("Sensitive", "x"),
+            binding_fields=(),
+            guard=GroundGuard("approval-required"),
             bound=5,
             discharge=Linear(),
         )
     )
-    monitor.set_initial("Sensitive(f)", K3.T)
+    monitor.set_initial("approval-required", K3.T)
     settled_statuses = (
         OccurrenceStatus.DISCHARGED,
         OccurrenceStatus.INAPPLICABLE,
@@ -212,7 +212,7 @@ def test_white_box_no_sort_without_eligible_occurrences(
             guard_key = "OtherGuard"
         else:
             status = settled_statuses[index % len(settled_statuses)]
-            guard_key = "Sensitive(f)"
+            guard_key = "approval-required"
         oid = f"stored-{index:04d}"
         monitor.occurrences[oid] = _occurrence(
             oid,

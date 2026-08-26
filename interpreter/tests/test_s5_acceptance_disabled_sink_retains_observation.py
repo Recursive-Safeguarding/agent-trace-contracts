@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from rs_metalang_ref.contracts import AfterClauseSpec, BoundUnaryGuard, Linear
+from rs_metalang_ref.contracts import AfterClauseSpec, GroundGuard, Linear
 from rs_metalang_ref.events import Complete, DomainEvent, TerminalEvent, TickEvent
 from rs_metalang_ref.kleene import K3
 from rs_metalang_ref.monitor import SingleClauseMonitor
@@ -39,8 +39,8 @@ def _contract() -> AfterClauseSpec:
         clause_id="c1",
         trigger_tag="export",
         response_tag="approval",
-        binding_fields=("x",),
-        guard=BoundUnaryGuard("Sensitive", "x"),
+        binding_fields=(),
+        guard=GroundGuard("approval-required"),
         bound=2,
         discharge=Linear(),
     )
@@ -49,14 +49,14 @@ def _contract() -> AfterClauseSpec:
 def _monitor() -> SingleClauseMonitor:
     """`initial: Sensitive(f): true`."""
     monitor = SingleClauseMonitor(_contract())
-    monitor.set_initial("Sensitive(f)", K3.T)
+    monitor.set_initial("approval-required", K3.T)
     return monitor
 
 
 def _left_prefix() -> SingleClauseMonitor:
     """`left_prefix: [0, export, {x: f}], [3, Complete, {}]`."""
     monitor = _monitor()
-    monitor.step(DomainEvent("e0", tick=0, tag="export", fields={"x": "f"}))
+    monitor.step(DomainEvent("e0", tick=0, tag="export"))
     monitor.step(TerminalEvent("e1", tick=3, kind=Complete()))
     return monitor
 
@@ -64,8 +64,8 @@ def _left_prefix() -> SingleClauseMonitor:
 def _right_prefix() -> SingleClauseMonitor:
     """`right_prefix: [0, export, {x: f}], [1, approval, {x: f}], [3, Complete, {}]`."""
     monitor = _monitor()
-    monitor.step(DomainEvent("e0", tick=0, tag="export", fields={"x": "f"}))
-    monitor.step(DomainEvent("e1", tick=1, tag="approval", fields={"x": "f"}))
+    monitor.step(DomainEvent("e0", tick=0, tag="export"))
+    monitor.step(DomainEvent("e1", tick=1, tag="approval"))
     monitor.step(TerminalEvent("e2", tick=3, kind=Complete()))
     return monitor
 
@@ -78,7 +78,7 @@ def _continuation(tag: str = "export"):
     prefix without depending on absolute timestamps." The continuation therefore carries
     the relative advance 1, not the prefixes' absolute next tick 4.
     """
-    return [DomainEvent("c0", tick=1, tag=tag, fields={"x": "f"})]
+    return [DomainEvent("c0", tick=1, tag=tag)]
 
 
 # -- reading a residual without prescribing how it is built -----------------
@@ -215,7 +215,7 @@ def test_same_disabled_domain_event_tag_retains_bound_field_values():
     """
     attempted_f = monitor_residual(
         _left_prefix(),
-        [DomainEvent("c0", tick=1, tag="export", fields={"x": "f"})],
+        [DomainEvent("c0", tick=1, tag="export")],
     )
     attempted_g = monitor_residual(
         _left_prefix(),
@@ -257,8 +257,8 @@ def test_a_contract_that_fired_and_was_discharged_is_not_merged_with_one_that_ne
     projection, and it merges these two prefixes.
     """
     fired = _monitor()
-    fired.step(DomainEvent("e0", tick=0, tag="export", fields={"x": "f"}))
-    fired.step(DomainEvent("e1", tick=1, tag="approval", fields={"x": "f"}))
+    fired.step(DomainEvent("e0", tick=0, tag="export"))
+    fired.step(DomainEvent("e1", tick=1, tag="approval"))
     fired.step(TerminalEvent("e2", tick=3, kind=Complete()))
 
     never_fired = _monitor()
@@ -295,7 +295,7 @@ def test_two_distinct_monitor_faults_are_not_merged():
     any length recovers the distinction.
     """
     inconsistent = _monitor()
-    inconsistent.step(TickEvent("k0", tick=0, observations={"Sensitive(f)": K3.F}))
+    inconsistent.step(TickEvent("k0", tick=0, observations={"approval-required": K3.F}))
 
     non_monotone = _monitor()
     non_monotone.step(TickEvent("k0", tick=5))

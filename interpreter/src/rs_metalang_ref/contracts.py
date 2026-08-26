@@ -48,12 +48,7 @@ class Linear:
     pass
 
 
-@dataclasses.dataclass(frozen=True)
-class Broadcast:
-    key: str
-
-
-DischargeMode = Linear | Broadcast
+DischargeMode = Linear
 
 
 @dataclasses.dataclass(frozen=True)
@@ -65,24 +60,17 @@ class GroundGuard:
             raise InvalidAfterClauseSpec("GroundGuard requires a non-empty string proposition_key")
 
 
-@dataclasses.dataclass(frozen=True)
-class BoundUnaryGuard:
-    predicate: str
-    binding_field: str
-
-    def __post_init__(self) -> None:
-        if type(self.predicate) is not str or not self.predicate:
-            raise InvalidAfterClauseSpec("BoundUnaryGuard requires a non-empty string predicate")
-        if type(self.binding_field) is not str or not self.binding_field:
-            raise InvalidAfterClauseSpec("BoundUnaryGuard requires a non-empty string binding_field")
-
-
-Guard = GroundGuard | BoundUnaryGuard
+Guard = GroundGuard
 
 
 @dataclasses.dataclass(frozen=True)
 class AfterClauseSpec:
-    """The executable unary-or-fieldless after-clause fragment."""
+    """The core after-clause form: fieldless, ground-guarded, linear.
+
+    The specification excludes non-empty `binding_fields`, and admits only
+    `on_agent_abort=Breach`. A clause outside that form is refused here rather
+    than given a reading this version does not define.
+    """
 
     clause_id: str
     trigger_tag: str
@@ -102,31 +90,18 @@ class AfterClauseSpec:
             raise InvalidAfterClauseSpec("binding_fields must be a tuple of strings")
         if any(type(field) is not str for field in self.binding_fields):
             raise InvalidAfterClauseSpec("binding_fields must contain only strings")
-        if any(not field for field in self.binding_fields):
-            raise InvalidAfterClauseSpec("binding_fields must not contain empty names")
-        if len(set(self.binding_fields)) != len(self.binding_fields):
-            raise InvalidAfterClauseSpec("binding_fields must not contain duplicates")
-        if len(self.binding_fields) > 1:
-            raise InvalidAfterClauseSpec("this executable fragment admits at most one binding field")
+        if self.binding_fields:
+            raise InvalidAfterClauseSpec(
+                "an after clause with non-empty binding_fields is outside this core"
+            )
         if type(self.bound) is not int or self.bound < 0:
             raise InvalidAfterClauseSpec("bound must be a natural number")
-        if type(self.discharge) not in (Linear, Broadcast):
-            raise InvalidAfterClauseSpec(
-                "discharge must be exactly Linear or Broadcast"
-            )
-        if type(self.on_agent_abort) not in (Breach, Indeterminate, WaiveIf):
-            raise InvalidAfterClauseSpec(
-                "on_agent_abort must be exactly Breach, Indeterminate, or WaiveIf"
-            )
-        if type(self.guard) is GroundGuard:
-            return
-        if type(self.guard) is BoundUnaryGuard:
-            if self.binding_fields != (self.guard.binding_field,):
-                raise InvalidAfterClauseSpec(
-                    "BoundUnaryGuard.binding_field must be the single declared binding field"
-                )
-            return
-        raise InvalidAfterClauseSpec("guard must be exactly GroundGuard or BoundUnaryGuard")
+        if type(self.discharge) is not Linear:
+            raise InvalidAfterClauseSpec("discharge must be exactly Linear")
+        if type(self.on_agent_abort) is not Breach:
+            raise InvalidAfterClauseSpec("on_agent_abort must be exactly Breach")
+        if type(self.guard) is not GroundGuard:
+            raise InvalidAfterClauseSpec("guard must be exactly GroundGuard")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -134,23 +109,7 @@ class Breach:
     pass
 
 
-@dataclasses.dataclass(frozen=True)
-class Indeterminate:
-    pass
-
-
-@dataclasses.dataclass(frozen=True)
-class WaiveIf:
-    authority_key: str
-
-    def __post_init__(self) -> None:
-        if type(self.authority_key) is not str or not self.authority_key:
-            raise InvalidAfterClauseSpec(
-                "WaiveIf requires a non-empty string authority_key"
-            )
-
-
-AbortDisposition = Breach | Indeterminate | WaiveIf
+AbortDisposition = Breach
 
 
 # -- clause grammar (structural) -----------------------------------------

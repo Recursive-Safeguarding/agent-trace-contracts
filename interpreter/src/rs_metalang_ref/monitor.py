@@ -19,13 +19,10 @@ from enum import Enum
 from .contracts import (
     AbortDisposition,
     AfterClauseSpec,
-    BoundUnaryGuard,
     Breach,
     GroundGuard,
-    Indeterminate,
     InvalidBinding,
     Linear,
-    WaiveIf,
 )
 from .events import (
     AgentAbort,
@@ -56,10 +53,6 @@ class MonitorMode(Enum):
     RUNNING = "Running"
     HALTED = "Halted"
     FAULTED = "Faulted"
-
-
-class UnsupportedDischargeModeError(NotImplementedError):
-    """The executable single-clause fragment does not define this mode."""
 
 
 class UnsupportedEventTypeError(TypeError):
@@ -99,11 +92,8 @@ class SingleClauseMonitor:
     """
 
     def __init__(self, spec: AfterClauseSpec):
-        if type(spec.discharge) is not Linear:
-            raise UnsupportedDischargeModeError(
-                f"{type(spec.discharge).__name__} is outside the executable "
-                "conformance fragment"
-            )
+        if type(spec) is not AfterClauseSpec:
+            raise TypeError("spec must be an AfterClauseSpec")
         self.spec = spec
         self.mode = MonitorMode.RUNNING
         self.terminal_kind = None
@@ -154,8 +144,6 @@ class SingleClauseMonitor:
             raise ValueError("current_tick must be an integer no smaller than -1")
         if type(spec) is not AfterClauseSpec:
             raise ValueError("spec must be an AfterClauseSpec")
-        if spec.binding_fields or type(spec.guard) is not GroundGuard:
-            raise ValueError("state-card restoration requires a ground-clause spec")
         if not isinstance(retained_events, Sequence) or isinstance(
             retained_events, (str, bytes)
         ):
@@ -293,15 +281,8 @@ class SingleClauseMonitor:
         self.epistemic[key] = value
 
     def guard_key_for(self, substitution: Mapping[str, object]) -> str:
-        projection = self._validate_exact_substitution(substitution)
-        guard = self.spec.guard
-        if type(guard) is GroundGuard:
-            return guard.proposition_key
-        if type(guard) is BoundUnaryGuard:
-            return f"{guard.predicate}({projection[guard.binding_field]})"
-        raise AssertionError(
-            "AfterClauseSpec validation admits only known guard classes"
-        )
+        self._validate_exact_substitution(substitution)
+        return self.spec.guard.proposition_key
 
     def guard_value_for(self, substitution: Mapping[str, object]) -> K3:
         return self.epistemic.get(self.guard_key_for(substitution), K3.U)
@@ -450,32 +431,13 @@ class SingleClauseMonitor:
     ) -> dict[str, str]:
         if not isinstance(substitution, Mapping):
             raise InvalidBinding("substitution must be a mapping")
-        expected = set(self.spec.binding_fields)
-        actual = set(substitution)
-        if actual != expected:
-            raise InvalidBinding(
-                "substitution must contain exactly the declared binding fields"
-            )
-        projection: dict[str, str] = {}
-        for field in self.spec.binding_fields:
-            value = substitution[field]
-            if type(value) is not str:
-                raise InvalidBinding("bound values must be strings")
-            projection[field] = value
-        return projection
+        if set(substitution):
+            raise InvalidBinding("this core clause declares no binding fields")
+        return {}
 
     def _project_match(self, event: DomainEvent, tag: str) -> dict[str, str] | None:
-        if event.tag != tag:
-            return None
-        projection: dict[str, str] = {}
-        for field in self.spec.binding_fields:
-            if field not in event.fields:
-                return None
-            value = event.fields[field]
-            if type(value) is not str:
-                raise InvalidBinding("bound values must be strings")
-            projection[field] = value
-        return projection
+        """The core clause binds no event data, so a tag match is the match."""
+        return {} if event.tag == tag else None
 
     def _instantiate_trigger(
         self, event: DomainEvent, tick: int, substitution: dict[str, str]
@@ -609,7 +571,7 @@ def _convert_open(
     if isinstance(kind, Complete):
         return OccurrenceStatus.BREACHED, "UnmetAtComplete"
     if isinstance(kind, AgentAbort):
-        return _convert_agent_abort_open(disposition, epistemic)
+        return OccurrenceStatus.BREACHED, "AbortWithOpenObligation"
     if isinstance(kind, ExternalCrash):
         return OccurrenceStatus.UNKNOWN_FINAL, "ExternalInterruption"
     if isinstance(kind, Timeout):
@@ -617,23 +579,6 @@ def _convert_open(
     if isinstance(kind, ObservationCut):
         return OccurrenceStatus.UNKNOWN_FINAL, "ObservationTruncated"
     raise ValueError(f"unrecognized terminal kind: {kind!r}")
-
-
-def _convert_agent_abort_open(
-    disposition: AbortDisposition, epistemic: dict
-) -> tuple[OccurrenceStatus, str]:
-    if isinstance(disposition, Breach):
-        return OccurrenceStatus.BREACHED, "AbortWithOpenObligation"
-    if isinstance(disposition, Indeterminate):
-        return OccurrenceStatus.UNKNOWN_FINAL, "AbortDispositionIndeterminate"
-    if isinstance(disposition, WaiveIf):
-        authority = epistemic.get(disposition.authority_key, K3.U)
-        if authority is K3.T:
-            return OccurrenceStatus.WAIVED, "AuthorizedAbort"
-        if authority is K3.F:
-            return OccurrenceStatus.BREACHED, "UnauthorizedAbort"
-        return OccurrenceStatus.UNKNOWN_FINAL, "AbortAuthorityUnknown"
-    raise ValueError(f"unrecognized abort disposition: {disposition!r}")
 
 
 def _convert_conditional(
@@ -644,11 +589,6 @@ def _convert_conditional(
     if isinstance(kind, Complete):
         return OccurrenceStatus.UNKNOWN_FINAL, "GuardUnknownAtComplete"
     if isinstance(kind, AgentAbort):
-        if (
-            isinstance(disposition, WaiveIf)
-            and epistemic.get(disposition.authority_key, K3.U) is K3.T
-        ):
-            return OccurrenceStatus.WAIVED, "AuthorizedAbortOfPotentialObligation"
         return OccurrenceStatus.UNKNOWN_FINAL, "GuardUnknownAtAgentAbort"
     if isinstance(kind, ExternalCrash):
         return OccurrenceStatus.UNKNOWN_FINAL, "GuardUnknownAtExternalCrash"

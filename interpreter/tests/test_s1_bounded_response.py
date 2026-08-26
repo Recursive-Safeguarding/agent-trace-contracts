@@ -13,17 +13,14 @@ import sys
 
 import pytest
 
+from rs_metalang_ref import contracts as contracts_module
 from rs_metalang_ref.contracts import (
     AfterClauseSpec,
-    BoundUnaryGuard,
     Breach,
-    Broadcast,
     GroundGuard,
-    Indeterminate,
     InvalidAfterClauseSpec,
     InvalidBinding,
     Linear,
-    WaiveIf,
     WellFormednessCertificate,
 )
 from rs_metalang_ref.events import (
@@ -45,8 +42,8 @@ def _spec(bound: int, clause_id: str = "c1") -> AfterClauseSpec:
         clause_id=clause_id,
         trigger_tag="export",
         response_tag="approval",
-        binding_fields=("x",),
-        guard=BoundUnaryGuard("Sensitive", "x"),
+        binding_fields=(),
+        guard=GroundGuard("approval-required"),
         bound=bound,
         discharge=Linear(),
     )
@@ -152,10 +149,10 @@ def test_s1_well_formedness_rejects_duplicate_clause_ids():
 
 def test_s1_response_at_inclusive_deadline():
     monitor = SingleClauseMonitor(_spec(bound=1))
-    monitor.set_initial("Sensitive(f)", K3.T)
+    monitor.set_initial("approval-required", K3.T)
 
-    monitor.step(DomainEvent("e0", tick=0, tag="export", fields={"x": "f"}))
-    verdict = monitor.step(DomainEvent("e1", tick=1, tag="approval", fields={"x": "f"}))
+    monitor.step(DomainEvent("e0", tick=0, tag="export"))
+    verdict = monitor.step(DomainEvent("e1", tick=1, tag="approval"))
     verdict = monitor.step(TerminalEvent("e2", tick=2, kind=Complete()))
 
     assert monitor.occurrences["o1"].status is OccurrenceStatus.DISCHARGED
@@ -171,9 +168,9 @@ def test_s1_response_at_inclusive_deadline():
 
 def test_s1_observation_cut_does_not_breach():
     monitor = SingleClauseMonitor(_spec(bound=5))
-    monitor.set_initial("Sensitive(f)", K3.T)
+    monitor.set_initial("approval-required", K3.T)
 
-    monitor.step(DomainEvent("e0", tick=0, tag="export", fields={"x": "f"}))
+    monitor.step(DomainEvent("e0", tick=0, tag="export"))
     verdict = monitor.step(TerminalEvent("e1", tick=1, kind=ObservationCut("source")))
 
     occ = monitor.occurrences["o1"]
@@ -187,9 +184,9 @@ def test_s1_observation_cut_does_not_breach():
 
 def test_s1_timeout_before_deadline_is_unknown_final():
     monitor = SingleClauseMonitor(_spec(bound=5))
-    monitor.set_initial("Sensitive(f)", K3.T)
+    monitor.set_initial("approval-required", K3.T)
 
-    monitor.step(DomainEvent("e0", tick=0, tag="export", fields={"x": "f"}))
+    monitor.step(DomainEvent("e0", tick=0, tag="export"))
     verdict = monitor.step(TerminalEvent("e1", tick=1, kind=Timeout("horizon")))
 
     occurrence = monitor.occurrences["o1"]
@@ -204,11 +201,11 @@ def test_s1_timeout_before_deadline_is_unknown_final():
 
 def test_s1_linear_response_does_not_discharge_two():
     monitor = SingleClauseMonitor(_spec(bound=2))
-    monitor.set_initial("Sensitive(f)", K3.T)
+    monitor.set_initial("approval-required", K3.T)
 
-    monitor.step(DomainEvent("e0", tick=0, tag="export", fields={"x": "f"}))
-    monitor.step(DomainEvent("e1", tick=1, tag="export", fields={"x": "f"}))
-    monitor.step(DomainEvent("e2", tick=2, tag="approval", fields={"x": "f"}))
+    monitor.step(DomainEvent("e0", tick=0, tag="export"))
+    monitor.step(DomainEvent("e1", tick=1, tag="export"))
+    monitor.step(DomainEvent("e2", tick=2, tag="approval"))
     verdict = monitor.step(TerminalEvent("e3", tick=3, kind=Complete()))
 
     statuses = [occ.status for occ in monitor.occurrences.values()]
@@ -361,11 +358,11 @@ def test_s1_public_step_allocates_one_shared_retroactive_token_by_canonical_orde
     expected_oid,
 ):
     monitor = SingleClauseMonitor(_spec(bound=9))
-    monitor.set_initial("Sensitive(f)", K3.U)
+    monitor.set_initial("approval-required", K3.U)
 
-    monitor.step(DomainEvent("e0", tick=0, tag="export", fields={"x": "f"}))
-    monitor.step(DomainEvent("e1", tick=1, tag="export", fields={"x": "f"}))
-    monitor.step(DomainEvent("r2", tick=2, tag="approval", fields={"x": "f"}))
+    monitor.step(DomainEvent("e0", tick=0, tag="export"))
+    monitor.step(DomainEvent("e1", tick=1, tag="export"))
+    monitor.step(DomainEvent("r2", tick=2, tag="approval"))
 
     shared_token = monitor.occurrences["o1"].candidates[0]
     assert monitor.occurrences["o2"].candidates == [shared_token]
@@ -377,7 +374,7 @@ def test_s1_public_step_allocates_one_shared_retroactive_token_by_canonical_orde
     monitor.occurrences = dict(reversed(tuple(monitor.occurrences.items())))
 
     verdict = monitor.step(
-        TickEvent("resolve20", tick=20, observations={"Sensitive(f)": K3.T})
+        TickEvent("resolve20", tick=20, observations={"approval-required": K3.T})
     )
 
     loser_oid = "o1" if expected_oid == "o2" else "o2"
@@ -394,11 +391,11 @@ def test_s1_public_step_allocates_one_shared_retroactive_token_by_canonical_orde
 
 def test_s1_retroactive_activation_without_response():
     monitor = SingleClauseMonitor(_spec(bound=1))
-    monitor.set_initial("Sensitive(f)", K3.U)
+    monitor.set_initial("approval-required", K3.U)
 
-    monitor.step(DomainEvent("e0", tick=0, tag="export", fields={"x": "f"}))
+    monitor.step(DomainEvent("e0", tick=0, tag="export"))
     monitor.step(TickEvent("e1", tick=1))
-    verdict = monitor.step(TickEvent("e2", tick=2, observations={"Sensitive(f)": K3.T}))
+    verdict = monitor.step(TickEvent("e2", tick=2, observations={"approval-required": K3.T}))
 
     occ = monitor.occurrences["o1"]
     assert occ.status is OccurrenceStatus.BREACHED
@@ -413,10 +410,10 @@ def test_s1_retroactive_activation_without_response():
 
 def test_s1_worked_example_export_sensitive_approval():
     monitor = SingleClauseMonitor(_spec(bound=1))
-    monitor.set_initial("Sensitive(f)", K3.U)
+    monitor.set_initial("approval-required", K3.U)
 
     # Tick 10: export(f) -- guard unknown, ConditionalOpen with D=11.
-    monitor.step(DomainEvent("e10", tick=10, tag="export", fields={"x": "f"}))
+    monitor.step(DomainEvent("e10", tick=10, tag="export"))
     occ = monitor.occurrences["o1"]
     assert occ.status is OccurrenceStatus.CONDITIONAL_OPEN
     assert occ.deadline == 11
@@ -425,7 +422,7 @@ def test_s1_worked_example_export_sensitive_approval():
     # Tick 11: approval(f), on time (11 == D), and reserved for the
     # occurrence while its guard is unknown. Boundary expiry then converts the
     # occurrence to ConditionalExpired, not a breach.
-    monitor.step(DomainEvent("e11", tick=11, tag="approval", fields={"x": "f"}))
+    monitor.step(DomainEvent("e11", tick=11, tag="approval"))
     occ = monitor.occurrences["o1"]
     assert occ.status is OccurrenceStatus.CONDITIONAL_EXPIRED
     assert len(occ.candidates) == 1
@@ -439,7 +436,7 @@ def test_s1_worked_example_export_sensitive_approval():
     # t_r=11 <= D=11, so the occurrence is Discharged, not breached.
     monitor.step(
         DomainEvent(
-            "e12", tick=12, tag="Observation", observations={"Sensitive(f)": K3.T}
+            "e12", tick=12, tag="Observation", observations={"approval-required": K3.T}
         )
     )
     occ = monitor.occurrences["o1"]
@@ -477,120 +474,110 @@ def test_s1_demonstrated_failure_inconsistent_observation():
     assert permission == DenyUnknown("MonitorSemanticFault")
 
 
-# -- Binding semantics -----------------------------------------------------
+# -- The core clause reads no event data ------------------------------------
 #
-# The clause is `after export(x) when Sensitive(x) require approval(x) within 1`.
-# the static well-formedness rule, condition 2: "for `after`, the
-# `TriggerPattern as Binding` site supplies them", where "them" is the free
-# variables of every predicate and response pattern of that clause. So one trigger
-# occurrence binds `x`, and both the guard and the response of that occurrence read
-# that binding. A different value of `x` is a different occurrence.
-#
-# The tests below state that rule at the public seam. They do not inspect internals.
+# The clause in force is `after export when approval-required require approval
+# within D`. It declares no binding fields, so an event matches on its tag
+# alone and its `fields` map is data the clause never reads. A guard is a
+# ground proposition, fixed before the comparison begins.
 
 
-def _binding_spec(bound: int = 1) -> AfterClauseSpec:
+def _core_spec(bound: int = 1) -> AfterClauseSpec:
     return AfterClauseSpec(
         clause_id="c1",
         trigger_tag="export",
         response_tag="approval",
-        binding_fields=("x",),
-        guard=BoundUnaryGuard("Sensitive", "x"),
+        binding_fields=(),
+        guard=GroundGuard("approval-required"),
         bound=bound,
         discharge=Linear(),
     )
 
 
-def test_s1_response_for_a_different_binding_does_not_discharge():
-    """A response about `g` does not discharge an obligation triggered on `f`."""
-    monitor = SingleClauseMonitor(_binding_spec())
-    monitor.set_initial("Sensitive(f)", K3.T)
+def test_s1_a_response_discharges_the_duty_a_trigger_raised():
+    monitor = SingleClauseMonitor(_core_spec())
+    monitor.set_initial("approval-required", K3.T)
 
-    monitor.step(DomainEvent("e0", tick=0, tag="export", fields={"x": "f"}))
-    monitor.step(DomainEvent("e1", tick=1, tag="approval", fields={"x": "g"}))
-    verdict = monitor.step(TerminalEvent("e2", tick=2, kind=Complete()))
-
-    assert monitor.occurrences["o1"].status is OccurrenceStatus.BREACHED
-    assert verdict.summary is Summary.VIOLATED
-
-
-def test_s1_response_for_the_same_binding_discharges():
-    """Positive control: a response about `f` discharges the `f` obligation."""
-    monitor = SingleClauseMonitor(_binding_spec())
-    monitor.set_initial("Sensitive(f)", K3.T)
-
-    monitor.step(DomainEvent("e0", tick=0, tag="export", fields={"x": "f"}))
-    monitor.step(DomainEvent("e1", tick=1, tag="approval", fields={"x": "f"}))
+    monitor.step(DomainEvent("e0", tick=0, tag="export"))
+    monitor.step(DomainEvent("e1", tick=1, tag="approval"))
     verdict = monitor.step(TerminalEvent("e2", tick=2, kind=Complete()))
 
     assert monitor.occurrences["o1"].status is OccurrenceStatus.DISCHARGED
     assert verdict.summary is Summary.SATISFIED
 
 
-def test_s1_response_matching_no_open_binding_discharges_nothing():
-    """Two triggers, and a response about a third value, discharge neither."""
-    monitor = SingleClauseMonitor(_binding_spec(bound=5))
-    monitor.set_initial("Sensitive(f)", K3.T)
-    monitor.set_initial("Sensitive(h)", K3.T)
+@pytest.mark.parametrize(
+    "fields",
+    [
+        pytest.param({}, id="no-fields"),
+        pytest.param({"x": "f"}, id="one-field"),
+        pytest.param({"x": 123, "y": None}, id="values-of-any-type"),
+    ],
+)
+def test_s1_event_fields_do_not_change_the_reading(fields):
+    # The clause binds nothing, so the same tags give the same reading
+    # whatever data the events carry.
+    monitor = SingleClauseMonitor(_core_spec())
+    monitor.set_initial("approval-required", K3.T)
 
-    monitor.step(DomainEvent("e0", tick=0, tag="export", fields={"x": "f"}))
-    monitor.step(DomainEvent("e1", tick=1, tag="export", fields={"x": "h"}))
-    monitor.step(DomainEvent("e2", tick=2, tag="approval", fields={"x": "unrelated"}))
-    verdict = monitor.step(TerminalEvent("e3", tick=3, kind=Complete()))
+    monitor.step(DomainEvent("e0", tick=0, tag="export", fields=fields))
+    monitor.step(DomainEvent("e1", tick=1, tag="approval", fields=fields))
+    verdict = monitor.step(TerminalEvent("e2", tick=2, kind=Complete()))
 
-    statuses = [occurrence.status for occurrence in monitor.occurrences.values()]
-    assert OccurrenceStatus.DISCHARGED not in statuses
-    assert verdict.summary is Summary.VIOLATED
+    assert monitor.occurrences["o1"].status is OccurrenceStatus.DISCHARGED
+    assert verdict.summary is Summary.SATISFIED
 
 
-def test_s1_guard_is_read_at_the_triggered_binding():
-    """A false guard at the triggered binding makes the occurrence inapplicable.
+def test_s1_an_unmatched_tag_raises_no_duty():
+    monitor = SingleClauseMonitor(_core_spec())
+    monitor.set_initial("approval-required", K3.T)
 
-    S1.4 trigger-and-guard rule: `F => Inapplicable`. The occurrence is
-    recorded; it does not become a duty.
-    """
-    monitor = SingleClauseMonitor(_binding_spec())
-    monitor.set_initial("Sensitive(f)", K3.T)
-    monitor.set_initial("Sensitive(g)", K3.F)
+    monitor.step(DomainEvent("e0", tick=0, tag="publish", fields={"x": "f"}))
+    verdict = monitor.step(TerminalEvent("e1", tick=1, kind=Complete()))
 
-    monitor.step(DomainEvent("e0", tick=0, tag="export", fields={"x": "g"}))
+    assert monitor.occurrences == {}
+    assert verdict.summary is Summary.SATISFIED
+
+
+def test_s1_a_false_guard_makes_the_occurrence_inapplicable():
+    """The trigger-and-guard rule: a false guard records the occurrence
+    without making it a duty."""
+    monitor = SingleClauseMonitor(_core_spec())
+    monitor.set_initial("approval-required", K3.F)
+
+    monitor.step(DomainEvent("e0", tick=0, tag="export"))
     verdict = monitor.step(TerminalEvent("e1", tick=1, kind=Complete()))
 
     statuses = {occurrence.status for occurrence in monitor.occurrences.values()}
-    assert statuses <= {OccurrenceStatus.INAPPLICABLE}
-    assert verdict.summary is not Summary.VIOLATED
+    assert statuses == {OccurrenceStatus.INAPPLICABLE}
+    assert verdict.summary is Summary.SATISFIED
 
 
-def test_s1_guard_opens_an_obligation_at_a_true_binding():
-    """A true guard at the triggered binding opens a duty.
+def test_s1_a_true_guard_opens_a_duty():
+    """The control for the test above."""
+    monitor = SingleClauseMonitor(_core_spec())
+    monitor.set_initial("approval-required", K3.T)
 
-    The control for the test above. `Sensitive(f)` is false here, so a monitor
-    that reads the constructor's fixed key rather than the triggered binding
-    reports the occurrence inapplicable and the trace satisfied.
-    """
-    monitor = SingleClauseMonitor(_binding_spec())
-    monitor.set_initial("Sensitive(f)", K3.F)
-    monitor.set_initial("Sensitive(g)", K3.T)
-
-    monitor.step(DomainEvent("e0", tick=0, tag="export", fields={"x": "g"}))
+    monitor.step(DomainEvent("e0", tick=0, tag="export"))
     verdict = monitor.step(TerminalEvent("e1", tick=1, kind=Complete()))
 
     statuses = {occurrence.status for occurrence in monitor.occurrences.values()}
-    assert OccurrenceStatus.INAPPLICABLE not in statuses
+    assert statuses == {OccurrenceStatus.BREACHED}
     assert verdict.summary is Summary.VIOLATED
 
 
-def test_s1_ground_guard_does_not_rebind_to_event_field():
-    spec = AfterClauseSpec(
-        clause_id="c1",
-        trigger_tag="export",
-        response_tag="approval",
-        binding_fields=("x",),
-        guard=GroundGuard("CountryAllowed(UK)"),
-        bound=1,
-        discharge=Linear(),
+def test_s1_the_guard_key_does_not_follow_an_event_field():
+    monitor = SingleClauseMonitor(
+        AfterClauseSpec(
+            clause_id="c1",
+            trigger_tag="export",
+            response_tag="approval",
+            binding_fields=(),
+            guard=GroundGuard("CountryAllowed(UK)"),
+            bound=1,
+            discharge=Linear(),
+        )
     )
-    monitor = SingleClauseMonitor(spec)
     monitor.set_initial("CountryAllowed(UK)", K3.T)
     monitor.set_initial("CountryAllowed(f)", K3.F)
 
@@ -602,152 +589,80 @@ def test_s1_ground_guard_does_not_rebind_to_event_field():
     assert verdict.summary is Summary.SATISFIED
 
 
-def test_s1_missing_trigger_field_is_no_match():
-    monitor = SingleClauseMonitor(_binding_spec())
-    monitor.set_initial("Sensitive(f)", K3.T)
-
-    monitor.step(DomainEvent("e0", tick=0, tag="export", fields={"y": "f"}))
-    verdict = monitor.step(TerminalEvent("e1", tick=1, kind=Complete()))
-
-    assert monitor.occurrences == {}
-    assert verdict.summary is Summary.SATISFIED
-
-
-def test_s1_missing_response_field_is_no_match():
-    monitor = SingleClauseMonitor(_binding_spec())
-    monitor.set_initial("Sensitive(f)", K3.T)
-
-    monitor.step(DomainEvent("e0", tick=0, tag="export", fields={"x": "f"}))
-    monitor.step(DomainEvent("e1", tick=1, tag="approval", fields={"y": "f"}))
-    verdict = monitor.step(TerminalEvent("e2", tick=2, kind=Complete()))
-
-    assert monitor.occurrences["o1"].status is OccurrenceStatus.BREACHED
-    assert verdict.summary is Summary.VIOLATED
-
-
-def test_s1_same_event_trigger_then_response_can_discharge_new_occurrence():
-    spec = AfterClauseSpec(
-        clause_id="c1",
-        trigger_tag="export",
-        response_tag="export",
-        binding_fields=("x",),
-        guard=BoundUnaryGuard("Sensitive", "x"),
-        bound=1,
-        discharge=Linear(),
+def test_s1_one_event_matching_both_tags_settles_the_duty_it_raised():
+    monitor = SingleClauseMonitor(
+        AfterClauseSpec(
+            clause_id="c1",
+            trigger_tag="export",
+            response_tag="export",
+            binding_fields=(),
+            guard=GroundGuard("approval-required"),
+            bound=1,
+            discharge=Linear(),
+        )
     )
-    monitor = SingleClauseMonitor(spec)
-    monitor.set_initial("Sensitive(f)", K3.T)
+    monitor.set_initial("approval-required", K3.T)
 
-    verdict = monitor.step(DomainEvent("e0", tick=0, tag="export", fields={"x": "f"}))
+    verdict = monitor.step(DomainEvent("e0", tick=0, tag="export"))
 
     assert monitor.occurrences["o1"].status is OccurrenceStatus.DISCHARGED
     assert verdict.summary is Summary.UNKNOWN
 
 
-def test_s1_response_for_another_binding_does_not_reserve_a_conditional():
-    monitor = SingleClauseMonitor(_binding_spec())
-    monitor.set_initial("Sensitive(f)", K3.U)
+def test_s1_guard_value_for_admits_only_the_empty_substitution():
+    monitor = SingleClauseMonitor(_core_spec())
+    monitor.set_initial("approval-required", K3.T)
 
-    monitor.step(DomainEvent("e0", tick=0, tag="export", fields={"x": "f"}))
-    monitor.step(DomainEvent("e1", tick=1, tag="approval", fields={"x": "g"}))
-    verdict = monitor.step(
-        DomainEvent(
-            "e2", tick=2, tag="Observation", observations={"Sensitive(f)": K3.T}
-        )
-    )
-
-    assert monitor.occurrences["o1"].status is OccurrenceStatus.BREACHED
-    assert monitor.occurrences["o1"].candidates == []
-    assert verdict.summary is Summary.VIOLATED
-
-
-def test_s1_non_string_bound_value_is_rejected_before_state_change():
-    monitor = SingleClauseMonitor(_binding_spec())
-    monitor.set_initial("Sensitive(f)", K3.T)
-
+    assert monitor.guard_value_for({}) is K3.T
+    for substitution in ({"x": "f"}, {"x": 1}, {"y": "extra"}):
+        with pytest.raises(InvalidBinding):
+            monitor.guard_value_for(substitution)
     with pytest.raises(InvalidBinding):
-        monitor.step(
-            DomainEvent(
-                "e0",
-                tick=0,
-                tag="export",
-                fields={"x": 123},
-                observations={"Other": K3.T},
-            )
-        )
-
-    assert monitor.tick == -1
-    assert monitor.occurrences == {}
-    assert "Other" not in monitor.epistemic
+        monitor.guard_value_for("not-a-mapping")
 
 
-def test_s1_guard_value_for_requires_the_exact_projected_substitution():
-    monitor = SingleClauseMonitor(_binding_spec())
-    monitor.set_initial("Sensitive(f)", K3.T)
+def _core_clause_fields() -> dict:
+    """The clause form Appendix B fixes: no binding fields, a ground guard,
+    linear discharge, and Breach as the only abort disposition."""
+    return {
+        "clause_id": "c1",
+        "trigger_tag": "export",
+        "response_tag": "approval",
+        "binding_fields": (),
+        "guard": GroundGuard("approval-required"),
+        "bound": 1,
+        "discharge": Linear(),
+        "on_agent_abort": Breach(),
+    }
 
-    assert monitor.guard_value_for({"x": "f"}) is K3.T
-    with pytest.raises(InvalidBinding):
-        monitor.guard_value_for({})
-    with pytest.raises(InvalidBinding):
-        monitor.guard_value_for({"x": "f", "y": "extra"})
-    with pytest.raises(InvalidBinding):
-        monitor.guard_value_for({"x": 1})
+
+def test_s1_after_clause_accepts_the_core_form():
+    spec = AfterClauseSpec(**_core_clause_fields())
+
+    assert spec.binding_fields == ()
+    assert type(spec.guard) is GroundGuard
+    assert type(spec.discharge) is Linear
+    assert type(spec.on_agent_abort) is Breach
 
 
 @pytest.mark.parametrize(
-    "factory",
+    ("field_name", "value"),
     [
-        lambda: GroundGuard(""),
-        lambda: BoundUnaryGuard("", "x"),
-        lambda: BoundUnaryGuard("Sensitive", ""),
-        lambda: AfterClauseSpec(
-            clause_id="c1",
-            trigger_tag="export",
-            response_tag="approval",
-            binding_fields=["x"],
-            guard=BoundUnaryGuard("Sensitive", "x"),
-            bound=1,
-        ),
-        lambda: AfterClauseSpec(
-            clause_id="c1",
-            trigger_tag="export",
-            response_tag="approval",
-            binding_fields=("x", "y"),
-            guard=BoundUnaryGuard("Sensitive", "x"),
-            bound=1,
-        ),
-        lambda: AfterClauseSpec(
-            clause_id="c1",
-            trigger_tag="export",
-            response_tag="approval",
-            binding_fields=("x",),
-            guard=BoundUnaryGuard("Sensitive", "y"),
-            bound=1,
-        ),
-        lambda: AfterClauseSpec(
-            clause_id="c1",
-            trigger_tag="export",
-            response_tag="approval",
-            binding_fields=("x",),
-            guard="Sensitive(x)",
-            bound=1,
-        ),
-    ],
-)
-def test_s1_invalid_after_clause_shapes_are_rejected(factory):
-    with pytest.raises(InvalidAfterClauseSpec):
-        factory()
-
-
-@pytest.mark.parametrize(
-    ("field_name", "invalid_variant"),
-    [
+        # "An AfterClause with non-empty binding_fields is not supported in
+        # this core."
+        pytest.param("binding_fields", ("x",), id="one-binding-field"),
+        pytest.param("binding_fields", ("x", "y"), id="two-binding-fields"),
+        pytest.param("binding_fields", ["x"], id="binding-fields-not-a-tuple"),
+        pytest.param("binding_fields", (1,), id="binding-field-not-a-string"),
+        pytest.param("guard", "approval-required", id="guard-not-a-guard"),
+        pytest.param("guard", None, id="guard-missing"),
         pytest.param("discharge", object(), id="discharge-object"),
         pytest.param(
             "discharge",
             type("LinearSubclass", (Linear,), {})(),
             id="discharge-subclass",
         ),
+        # "This core admits only on_agent_abort=Breach."
         pytest.param("on_agent_abort", object(), id="abort-object"),
         pytest.param(
             "on_agent_abort",
@@ -756,56 +671,24 @@ def test_s1_invalid_after_clause_shapes_are_rejected(factory):
         ),
     ],
 )
-def test_s1_after_clause_rejects_values_outside_exact_closed_variants(
-    field_name,
-    invalid_variant,
-):
-    fields = {
-        "clause_id": "c1",
-        "trigger_tag": "export",
-        "response_tag": "approval",
-        "binding_fields": (),
-        "guard": GroundGuard("Sensitive"),
-        "bound": 1,
-        "discharge": Linear(),
-        "on_agent_abort": Breach(),
-    }
-    fields[field_name] = invalid_variant
+def test_s1_after_clause_rejects_what_the_core_leaves_undefined(field_name, value):
+    fields = _core_clause_fields()
+    fields[field_name] = value
 
-    with pytest.raises(InvalidAfterClauseSpec, match=field_name):
+    with pytest.raises(InvalidAfterClauseSpec):
         AfterClauseSpec(**fields)
 
 
-@pytest.mark.parametrize(
-    ("discharge", "on_agent_abort"),
-    [
-        pytest.param(Linear(), Breach(), id="linear-breach"),
-        pytest.param(Broadcast("group"), Indeterminate(), id="broadcast-indeterminate"),
-        pytest.param(Linear(), WaiveIf("abort-authority"), id="linear-waive-if"),
-    ],
-)
-def test_s1_after_clause_accepts_each_exact_closed_variant(
-    discharge,
-    on_agent_abort,
-):
-    spec = AfterClauseSpec(
-        clause_id="c1",
-        trigger_tag="export",
-        response_tag="approval",
-        binding_fields=(),
-        guard=GroundGuard("Sensitive"),
-        bound=1,
-        discharge=discharge,
-        on_agent_abort=on_agent_abort,
-    )
-
-    assert spec.discharge == discharge
-    assert spec.on_agent_abort == on_agent_abort
+def test_s1_the_package_offers_no_construct_the_core_leaves_undefined():
+    # A construct outside this core is reported as not implemented rather than
+    # given a reading here, so the package does not publish one at all.
+    for name in ("BoundUnaryGuard", "Broadcast", "Indeterminate", "WaiveIf"):
+        assert not hasattr(contracts_module, name), name
 
 
-def test_s1_waive_if_rejects_malformed_authority_before_monitor_construction():
+def test_s1_ground_guard_rejects_an_empty_proposition_key():
     with pytest.raises(InvalidAfterClauseSpec):
-        WaiveIf(authority_key=[])
+        GroundGuard("")
 
 
 @pytest.mark.parametrize(

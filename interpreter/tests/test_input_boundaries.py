@@ -11,7 +11,6 @@ import rs_metalang_ref.monitor as monitor_module
 from rs_metalang_ref import obligations
 from rs_metalang_ref.contracts import (
     AfterClauseSpec,
-    BoundUnaryGuard,
     GroundGuard,
     Linear,
 )
@@ -38,8 +37,8 @@ def _spec() -> AfterClauseSpec:
         clause_id="c1",
         trigger_tag="export",
         response_tag="approval",
-        binding_fields=("x",),
-        guard=BoundUnaryGuard("Sensitive", "x"),
+        binding_fields=(),
+        guard=GroundGuard("approval-required"),
         bound=1,
         discharge=Linear(),
     )
@@ -74,7 +73,7 @@ def _restore_open_state_card(**overrides) -> SingleClauseMonitor:
 
 def _monitor_with_open_obligation() -> SingleClauseMonitor:
     monitor = SingleClauseMonitor(_spec())
-    monitor.set_initial("Sensitive(f)", K3.U)
+    monitor.set_initial("approval-required", K3.U)
     monitor.step(
         DomainEvent(
             event_id="trigger",
@@ -443,7 +442,7 @@ def test_set_initial_refuses_non_k3_before_store_mutation():
     monitor = SingleClauseMonitor(_spec())
 
     with pytest.raises(ValueError, match="K3"):
-        monitor.set_initial("Sensitive(f)", "not-k3")
+        monitor.set_initial("approval-required", "not-k3")
 
     assert monitor.epistemic == {}
     assert monitor.mode is MonitorMode.RUNNING
@@ -463,54 +462,54 @@ def test_verdict_object_requires_exact_summary_and_mode_values(summary, mode):
 
 def test_set_initial_rejects_a_contradictory_second_value_without_mutation():
     monitor = SingleClauseMonitor(_spec())
-    monitor.set_initial("Sensitive(f)", K3.T)
+    monitor.set_initial("approval-required", K3.T)
     before = _public_monitor_state(monitor)
 
     with pytest.raises(ValueError, match="already established"):
-        monitor.set_initial("Sensitive(f)", K3.F)
+        monitor.set_initial("approval-required", K3.F)
 
     assert _public_monitor_state(monitor) == before
 
 
 def test_set_initial_rejects_a_post_event_call_without_mutation():
     monitor = SingleClauseMonitor(_spec())
-    monitor.set_initial("Sensitive(f)", K3.T)
+    monitor.set_initial("approval-required", K3.T)
     monitor.step(TickEvent(event_id="tick-0", tick=0))
     before = _public_monitor_state(monitor)
 
     with pytest.raises(ValueError, match="only before the first event"):
-        monitor.set_initial("Sensitive(f)", K3.F)
+        monitor.set_initial("approval-required", K3.F)
 
     assert _public_monitor_state(monitor) == before
 
 
 def test_set_initial_rejects_a_post_terminal_call_without_mutation():
     monitor = SingleClauseMonitor(_spec())
-    monitor.set_initial("Sensitive(f)", K3.T)
+    monitor.set_initial("approval-required", K3.T)
     monitor.step(TerminalEvent(event_id="complete-0", tick=0, kind=Complete()))
     before = _public_monitor_state(monitor)
 
     with pytest.raises(ValueError, match="only before the first event"):
-        monitor.set_initial("Sensitive(f)", K3.F)
+        monitor.set_initial("approval-required", K3.F)
 
     assert _public_monitor_state(monitor) == before
 
 
 def test_observe_refuses_non_k3_before_store_mutation():
     monitor = SingleClauseMonitor(_spec())
-    monitor.set_initial("Sensitive(f)", K3.U)
+    monitor.set_initial("approval-required", K3.U)
 
     with pytest.raises(ValueError, match="K3"):
-        monitor.observe("Sensitive(f)", "not-k3", tick=0)
+        monitor.observe("approval-required", "not-k3", tick=0)
 
-    assert monitor.epistemic == {"Sensitive(f)": K3.U}
+    assert monitor.epistemic == {"approval-required": K3.U}
     assert monitor.mode is MonitorMode.RUNNING
     assert monitor.fault is None
 
 
 def test_step_refuses_non_k3_observation_before_state_mutation():
     monitor = SingleClauseMonitor(_spec())
-    monitor.set_initial("Sensitive(f)", K3.U)
+    monitor.set_initial("approval-required", K3.U)
     monitor.step(
         DomainEvent(
             event_id="trigger",
@@ -529,7 +528,7 @@ def test_step_refuses_non_k3_observation_before_state_mutation():
             TickEvent(
                 event_id="deadline",
                 tick=1,
-                observations={"Sensitive(f)": "not-k3"},
+                observations={"approval-required": "not-k3"},
             )
         )
 
@@ -543,7 +542,7 @@ def test_step_refuses_non_k3_observation_before_state_mutation():
 @pytest.mark.parametrize(
     "invalid_observations",
     [
-        pytest.param([("Sensitive(f)", K3.T)], id="list-of-pairs"),
+        pytest.param([("approval-required", K3.T)], id="list-of-pairs"),
         pytest.param({"": K3.T}, id="empty-key"),
         pytest.param({1: K3.T}, id="non-string-key"),
     ],
@@ -552,7 +551,7 @@ def test_step_requires_a_mapping_with_nonempty_string_observation_keys(
     invalid_observations,
 ):
     monitor = SingleClauseMonitor(_spec())
-    monitor.set_initial("Sensitive(f)", K3.U)
+    monitor.set_initial("approval-required", K3.U)
     before = _public_monitor_state(monitor)
 
     event = TickEvent(
@@ -622,12 +621,12 @@ def test_step_accepts_a_supported_event_with_a_natural_tick_and_k3_observation()
         TickEvent(
             event_id="e0",
             tick=0,
-            observations={"Sensitive(f)": K3.T},
+            observations={"approval-required": K3.T},
         )
     )
 
     assert monitor.tick == 0
-    assert monitor.epistemic == {"Sensitive(f)": K3.T}
+    assert monitor.epistemic == {"approval-required": K3.T}
     assert monitor.mode is MonitorMode.RUNNING
     assert verdict == monitor.current_verdict()
 
@@ -758,7 +757,7 @@ def test_valid_step_after_rejection_matches_a_fresh_run(rejected_event, error_na
         tag="export",
         fields={"x": "f"},
         effect_receipt=None,
-        observations={"Sensitive(f)": K3.T},
+        observations={"approval-required": K3.T},
     )
     actual_verdict = monitor.step(accepted_event)
 
@@ -771,7 +770,7 @@ def test_valid_step_after_rejection_matches_a_fresh_run(rejected_event, error_na
 
 def test_supported_none_receipt_and_single_observation_remain_normal():
     monitor = SingleClauseMonitor(_spec())
-    monitor.set_initial("Sensitive(f)", K3.U)
+    monitor.set_initial("approval-required", K3.U)
 
     verdict = monitor.step(
         DomainEvent(
@@ -780,26 +779,26 @@ def test_supported_none_receipt_and_single_observation_remain_normal():
             tag="export",
             fields={"x": "f"},
             effect_receipt=None,
-            observations={"Sensitive(f)": K3.T},
+            observations={"approval-required": K3.T},
         )
     )
 
     assert monitor.tick == 0
     assert monitor.mode is MonitorMode.RUNNING
-    assert monitor.epistemic == {"Sensitive(f)": K3.T}
+    assert monitor.epistemic == {"approval-required": K3.T}
     assert set(monitor.occurrences) == {"o1"}
     assert verdict == monitor.current_verdict()
 
 
 def test_single_inconsistent_observation_remains_a_semantic_fault():
     monitor = SingleClauseMonitor(_spec())
-    monitor.set_initial("Sensitive(f)", K3.T)
+    monitor.set_initial("approval-required", K3.T)
 
     monitor.step(
         TickEvent(
             event_id="inconsistent-single-observation",
             tick=0,
-            observations={"Sensitive(f)": K3.F},
+            observations={"approval-required": K3.F},
         )
     )
 
@@ -810,10 +809,10 @@ def test_single_inconsistent_observation_remains_a_semantic_fault():
 
 def test_reused_event_id_has_distinct_monitor_local_canonical_aliases():
     monitor = SingleClauseMonitor(_spec())
-    monitor.set_initial("Sensitive(f)", K3.T)
+    monitor.set_initial("approval-required", K3.T)
 
     for tick in (4, 9):
-        monitor.step(DomainEvent("e7", tick=tick, tag="export", fields={"x": "f"}))
+        monitor.step(DomainEvent("e7", tick=tick, tag="export"))
 
     assert tuple(monitor.occurrences) == ("o1", "o2")
     assert [monitor.occurrences[alias].trigger_tick for alias in ("o1", "o2")] == [4, 9]

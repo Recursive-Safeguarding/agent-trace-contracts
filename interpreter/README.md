@@ -72,8 +72,8 @@ S-labels it lists with their related tests.
 
 | Surface | Included here | Boundary |
 |---|---|---|
-| Contract monitor | The single `after TRIGGER when GUARD require RESPONSE within D` clause used by the S1 total three-valued bounded-response semantics fixtures, with linear response allocation and typed terminal conversion | There is no general pattern-matching compiler or general multi-clause monitor |
-| Discharge mode | `Linear()` in `SingleClauseMonitor` | Constructing the monitor with `Broadcast(key)` raises `UnsupportedDischargeModeError` rather than falling back to linear allocation |
+| Contract monitor | The single `after TRIGGER when GUARD require RESPONSE within D` clause the specification's core fixes: no binding fields, a ground guard, linear response allocation, `Breach` on agent abort, and typed terminal conversion | There is no general pattern-matching compiler or general multi-clause monitor |
+| Clause form | The core form above, checked where the clause is built | A clause with binding fields, a guard that is not ground, a discharge mode that is not `Linear`, or an abort disposition that is not `Breach` raises `InvalidAfterClauseSpec`: this package holds no reading for a construct the core leaves undefined |
 | Event input | Domain, tick, and terminal events used by the monitor | `MalformedEvent` is outside this interpreter's event boundary; `SingleClauseMonitor.step(...)` raises `UnsupportedEventTypeError` before it reads or changes state |
 | Indexed evidence | Subject unification, conjunction, duplicate-report fusion, and the implemented identifiability checks | Coverage is limited to the listed operations; fusion runs only under a declared `Duplicate` dependence |
 | Finite-discrete risk | `ThreeWayReport`, `AmbiguitySet`, and its finite-discrete upper-risk calculation | It takes the ambiguity set as given rather than deriving or narrowing it, and computes a risk bound rather than gating on it |
@@ -94,5 +94,5 @@ S-labels it lists with their related tests.
 | Firewall clauses, the probabilistic form, and acceptance tests (S6) | `tests/test_s6_firewall.py` |
 | Result-algebra constructors and comparison scope, what each result may discharge, and the closed constructor vocabulary | `tests/test_s5_result_scope.py` and `tests/test_s5_invalid_comparison_request.py` |
 | Typed events, the totalised transition system, and the residual (S1, S5) | `tests/test_s5_contract_hardening.py` |
-| Response-token discipline (S1.4) | `tests/test_linear_explicit_discharge.py` and `tests/test_allocation_properties.py` |
+| Response-token discipline (S1.4) | `tests/test_allocation_properties.py` |
 | Typed events and response-token discipline (S1.1, S1.4) | `tests/test_conditional_and_mode_boundaries.py` |

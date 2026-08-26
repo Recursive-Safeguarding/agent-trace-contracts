@@ -12,7 +12,7 @@ from dataclasses import fields
 import pytest
 
 import rs_metalang_ref.residual as residual_module
-from rs_metalang_ref.contracts import AfterClauseSpec, BoundUnaryGuard, Linear
+from rs_metalang_ref.contracts import AfterClauseSpec, GroundGuard, Linear
 from rs_metalang_ref.events import Complete, DomainEvent, ObservationCut, TerminalEvent
 from rs_metalang_ref.kleene import K3
 from rs_metalang_ref.monitor import SingleClauseMonitor
@@ -112,8 +112,8 @@ def _spec(bound: int) -> AfterClauseSpec:
         clause_id="c1",
         trigger_tag="export",
         response_tag="approval",
-        binding_fields=("x",),
-        guard=BoundUnaryGuard("Sensitive", "x"),
+        binding_fields=(),
+        guard=GroundGuard("approval-required"),
         bound=bound,
         discharge=Linear(),
     )
@@ -236,8 +236,8 @@ def test_agreement_on_supplied_continuations_does_not_cover_an_unlisted_word():
 
 def test_s5_terminal_labels_distinguish():
     monitor = SingleClauseMonitor(_spec(bound=5))
-    monitor.set_initial("Sensitive(f)", K3.T)
-    monitor.step(DomainEvent("e0", tick=0, tag="export", fields={"x": "f"}))
+    monitor.set_initial("approval-required", K3.T)
+    monitor.step(DomainEvent("e0", tick=0, tag="export"))
     # The open obligation has deadline 5; branch at tick 1, well before it,
     # so the difference is purely the terminal-conversion table.
 
@@ -259,10 +259,10 @@ def test_s5_terminal_labels_distinguish():
 def test_s5_canonical_event_identifiers():
     def build(event_ids):
         monitor = SingleClauseMonitor(_spec(bound=2))
-        monitor.set_initial("Sensitive(f)", K3.T)
-        monitor.step(DomainEvent(event_ids[0], tick=0, tag="export", fields={"x": "f"}))
+        monitor.set_initial("approval-required", K3.T)
+        monitor.step(DomainEvent(event_ids[0], tick=0, tag="export"))
         monitor.step(
-            DomainEvent(event_ids[1], tick=1, tag="approval", fields={"x": "f"})
+            DomainEvent(event_ids[1], tick=1, tag="approval")
         )
         return monitor.current_verdict()
 
@@ -298,11 +298,11 @@ def test_s5_two_versus_three_valued():
 def test_s5_worked_residual_example():
     def build(with_approval: bool):
         monitor = SingleClauseMonitor(_spec(bound=2))
-        monitor.set_initial("Sensitive(f)", K3.T)
-        monitor.step(DomainEvent("export", tick=0, tag="export", fields={"x": "f"}))
+        monitor.set_initial("approval-required", K3.T)
+        monitor.step(DomainEvent("export", tick=0, tag="export"))
         if with_approval:
             monitor.step(
-                DomainEvent("approval", tick=1, tag="approval", fields={"x": "f"})
+                DomainEvent("approval", tick=1, tag="approval")
             )
         return monitor
 

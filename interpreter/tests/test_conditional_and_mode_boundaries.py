@@ -10,8 +10,8 @@ and S1.4, "response-token discipline":
 * activation allocates once for the whole configuration, so two tokens
   discharge two occurrences and neither occurrence takes both, and the outcome
   is the same whichever order the occurrences arrive in; and
-* this conformance fragment rejects ``Broadcast(key)`` explicitly until its
-  event-to-key and event-to-scope mappings are specified.
+* a discharge mode outside the core form is refused where the clause is
+  built, before any event can reach the linear rules.
 
 One further test checks the event-union boundary from
 S1.1's typed events: this conformance fragment
@@ -34,8 +34,8 @@ import pytest
 from rs_metalang_ref import monitor as monitor_module
 from rs_metalang_ref.contracts import (
     AfterClauseSpec,
-    BoundUnaryGuard,
-    Broadcast,
+    GroundGuard,
+    InvalidAfterClauseSpec,
     Linear,
 )
 from rs_metalang_ref.events import DomainEvent, MalformedEvent, TickEvent
@@ -57,8 +57,8 @@ def _spec(discharge) -> AfterClauseSpec:
         clause_id="c1",
         trigger_tag="export",
         response_tag="approval",
-        binding_fields=("x",),
-        guard=BoundUnaryGuard("Sensitive", "x"),
+        binding_fields=(),
+        guard=GroundGuard("approval-required"),
         bound=5,
         discharge=discharge,
     )
@@ -71,7 +71,7 @@ def _conditional(oid: str, deadline: int, candidates=()) -> Occurrence:
         substitution={"x": "f"},
         trigger_tick=0,
         deadline=deadline,
-        guard_key="Sensitive(f)",
+        guard_key="approval-required",
         status=OccurrenceStatus.CONDITIONAL_OPEN,
         candidates=list(candidates),
     )
@@ -95,10 +95,10 @@ def test_late_response_is_not_retained_as_conditional_candidate():
 def test_response_before_occurrence_is_not_retained_for_future_trigger():
     """The event API does not attach an earlier response to a future occurrence."""
     monitor = SingleClauseMonitor(_spec(Linear()))
-    monitor.set_initial("Sensitive(f)", K3.U)
+    monitor.set_initial("approval-required", K3.U)
 
     monitor.step(DomainEvent("r0", tick=0, tag="approval"))
-    monitor.step(DomainEvent("e1", tick=1, tag="export", fields={"x": "f"}))
+    monitor.step(DomainEvent("e1", tick=1, tag="export"))
 
     assert monitor.occurrences["o1"].candidates == []
 
@@ -122,7 +122,7 @@ def test_simultaneous_conditional_activation_uses_canonical_order():
         TickEvent(
             "resolve4",
             tick=4,
-            observations={"Sensitive(f)": K3.T},
+            observations={"approval-required": K3.T},
         )
     )
 
@@ -157,7 +157,7 @@ def test_one_token_two_occurrences_gives_one_discharge_and_one_breach(arrival_or
     monitor.occurrences = {oid: records[oid] for oid in arrival_order}
 
     verdict = monitor.step(
-        TickEvent("resolve5", tick=5, observations={"Sensitive(f)": K3.T})
+        TickEvent("resolve5", tick=5, observations={"approval-required": K3.T})
     )
 
     assert canonical.status is OccurrenceStatus.DISCHARGED
@@ -192,7 +192,7 @@ def test_two_tokens_two_occurrences_discharge_one_token_each(arrival_order):
     monitor.occurrences = {oid: records[oid] for oid in arrival_order}
 
     verdict = monitor.step(
-        TickEvent("resolve5", tick=5, observations={"Sensitive(f)": K3.T})
+        TickEvent("resolve5", tick=5, observations={"approval-required": K3.T})
     )
 
     assert canonical.status is OccurrenceStatus.DISCHARGED
@@ -222,16 +222,10 @@ def test_activation_pass_ignores_the_order_its_caller_supplies(arrival_order):
     assert other.response is None
 
 
-def test_broadcast_is_rejected_at_monitor_construction():
-    """Unsupported broadcast mode fails before any event can use linear rules."""
-    error_type = getattr(monitor_module, "UnsupportedDischargeModeError", None)
-    assert error_type is not None, (
-        "monitor must expose UnsupportedDischargeModeError for discharge modes "
-        "outside its conformance fragment"
-    )
-
-    with pytest.raises(error_type, match="Broadcast"):
-        SingleClauseMonitor(_spec(Broadcast("batch")))
+def test_a_discharge_mode_outside_the_core_is_rejected_at_the_clause():
+    """A clause the core does not define fails before any event reaches it."""
+    with pytest.raises(InvalidAfterClauseSpec, match="discharge"):
+        _spec(type("Broadcast", (), {"key": "batch"})())
 
 
 def test_malformed_event_is_rejected_at_monitor_step_boundary():

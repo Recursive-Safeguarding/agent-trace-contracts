@@ -53,7 +53,7 @@ from __future__ import annotations
 import pytest
 
 import rs_metalang_ref.residual as residual_module
-from rs_metalang_ref.contracts import AfterClauseSpec, BoundUnaryGuard, Linear
+from rs_metalang_ref.contracts import AfterClauseSpec, GroundGuard, Linear
 from rs_metalang_ref.events import (
     Complete,
     DomainEvent,
@@ -72,8 +72,8 @@ def _spec(bound: int = 2) -> AfterClauseSpec:
         clause_id="c1",
         trigger_tag="export",
         response_tag="approval",
-        binding_fields=("x",),
-        guard=BoundUnaryGuard("Sensitive", "x"),
+        binding_fields=(),
+        guard=GroundGuard("approval-required"),
         bound=bound,
         discharge=Linear(),
     )
@@ -91,8 +91,8 @@ def _halted_prefix(terminal_tick: int = 3) -> SingleClauseMonitor:
     any residual difference to the label alone.
     """
     monitor = SingleClauseMonitor(_spec())
-    monitor.set_initial("Sensitive(f)", K3.T)
-    monitor.step(DomainEvent("e0", tick=0, tag="export", fields={"x": "f"}))
+    monitor.set_initial("approval-required", K3.T)
+    monitor.step(DomainEvent("e0", tick=0, tag="export"))
     monitor.step(TerminalEvent("t0", tick=terminal_tick, kind=Complete()))
     return monitor
 
@@ -107,8 +107,8 @@ def _faulted_prefix(fault_tick: int) -> SingleClauseMonitor:
     occurrence and is again independent of the absolute clock.
     """
     monitor = SingleClauseMonitor(_spec())
-    monitor.set_initial("Sensitive(f)", K3.T)
-    monitor.step(TickEvent("f0", tick=fault_tick, observations={"Sensitive(f)": K3.F}))
+    monitor.set_initial("approval-required", K3.T)
+    monitor.step(TickEvent("f0", tick=fault_tick, observations={"approval-required": K3.F}))
     return monitor
 
 
@@ -117,7 +117,7 @@ def _running_prefix() -> SingleClauseMonitor:
     unknown. A continuation event here is applied, so its observation map
     resolves the guard."""
     monitor = SingleClauseMonitor(_spec(bound=10))
-    monitor.step(DomainEvent("e0", tick=0, tag="export", fields={"x": "f"}))
+    monitor.step(DomainEvent("e0", tick=0, tag="export"))
     return monitor
 
 
@@ -129,8 +129,8 @@ def _running_prefix_at_tick(prefix_tick: int, bound: int) -> SingleClauseMonitor
     are the same.
     """
     monitor = SingleClauseMonitor(_spec(bound=bound))
-    monitor.set_initial("Sensitive(f)", K3.T)
-    monitor.step(DomainEvent("e0", tick=prefix_tick, tag="export", fields={"x": "f"}))
+    monitor.set_initial("approval-required", K3.T)
+    monitor.step(DomainEvent("e0", tick=prefix_tick, tag="export"))
     return monitor
 
 
@@ -314,7 +314,7 @@ def test_running_domain_event_advance_is_relative_to_current_replay_clock():
             prefix,
             (
                 TickEvent("advance-two", tick=2),
-                DomainEvent("approval-plus-one", tick=1, tag="approval", fields={"x": "f"}),
+                DomainEvent("approval-plus-one", tick=1, tag="approval"),
             ),
         )
         outcomes[origin] = (
@@ -436,10 +436,10 @@ def test_disabled_tick_label_drops_the_observation_map_it_never_applies():
     not a semantic one.
     """
     observed_true = monitor_residual(
-        _halted_prefix(), [TickEvent("a", tick=1, observations={"Sensitive(f)": K3.T})]
+        _halted_prefix(), [TickEvent("a", tick=1, observations={"approval-required": K3.T})]
     )
     observed_false = monitor_residual(
-        _halted_prefix(), [TickEvent("a", tick=1, observations={"Sensitive(f)": K3.F})]
+        _halted_prefix(), [TickEvent("a", tick=1, observations={"approval-required": K3.F})]
     )
     observed_nothing = monitor_residual(_halted_prefix(), [TickEvent("a", tick=1)])
 
@@ -469,8 +469,8 @@ def test_domain_and_terminal_labels_already_drop_the_observation_map():
         event = TerminalEvent("a", tick=1, kind=Complete(), observations=observations)
         return monitor_residual(_halted_prefix(), [event])
 
-    assert domain("f", {"Sensitive(f)": K3.T}) == domain("f", {"Sensitive(f)": K3.F})
-    assert terminal({"Sensitive(f)": K3.T}) == terminal({"Sensitive(f)": K3.F})
+    assert domain("f", {"approval-required": K3.T}) == domain("f", {"approval-required": K3.F})
+    assert terminal({"approval-required": K3.T}) == terminal({"approval-required": K3.F})
 
     assert domain("f", {}) != domain("g", {})
     assert _sink(domain("f", {})).attempted != _sink(domain("g", {})).attempted
@@ -491,10 +491,10 @@ def test_observations_reach_the_residual_when_they_are_applied():
     label that is never applied.
     """
     resolved_true = monitor_residual(
-        _running_prefix(), [TickEvent("a", tick=1, observations={"Sensitive(f)": K3.T})]
+        _running_prefix(), [TickEvent("a", tick=1, observations={"approval-required": K3.T})]
     )
     resolved_false = monitor_residual(
-        _running_prefix(), [TickEvent("a", tick=1, observations={"Sensitive(f)": K3.F})]
+        _running_prefix(), [TickEvent("a", tick=1, observations={"approval-required": K3.F})]
     )
 
     assert resolved_true.continuation_status == residual_module.NoDisabledLabel()

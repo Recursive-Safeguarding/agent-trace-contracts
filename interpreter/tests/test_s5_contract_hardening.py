@@ -30,7 +30,7 @@ import pytest
 
 import rs_metalang_ref
 import rs_metalang_ref.residual as residual_module
-from rs_metalang_ref.contracts import AfterClauseSpec, BoundUnaryGuard, Linear
+from rs_metalang_ref.contracts import AfterClauseSpec, GroundGuard, Linear
 from rs_metalang_ref.events import Complete, DomainEvent, TerminalEvent
 from rs_metalang_ref.kleene import K3
 from rs_metalang_ref.monitor import SingleClauseMonitor
@@ -358,14 +358,14 @@ def _real_monitor() -> SingleClauseMonitor:
         clause_id="c1",
         trigger_tag="export",
         response_tag="approval",
-        binding_fields=("x",),
-        guard=BoundUnaryGuard("Sensitive", "x"),
+        binding_fields=(),
+        guard=GroundGuard("approval-required"),
         bound=2,
         discharge=Linear(),
     )
     monitor = SingleClauseMonitor(contract)
-    monitor.set_initial("Sensitive(f)", K3.T)
-    monitor.step(DomainEvent("e0", tick=0, tag="export", fields={"x": "f"}))
+    monitor.set_initial("approval-required", K3.T)
+    monitor.step(DomainEvent("e0", tick=0, tag="export"))
     monitor.step(TerminalEvent("e1", tick=3, kind=Complete()))
     return monitor
 
