@@ -39,6 +39,7 @@ def open_obligation_card() -> CandidateCard:
                 oid=occurrence.oid,
                 trigger_tick=occurrence.trigger_tick,
                 deadline=occurrence.deadline,
+                status=occurrence.status,
             )
             for occurrence in prefix.monitor.occurrences.values()
             if occurrence.status is OccurrenceStatus.OPEN

@@ -136,9 +136,18 @@ class SingleClauseMonitor:
         initial_guard_value: K3,
         retained_events: Sequence[Event],
         current_tick: int,
-        open_occurrences: Sequence[tuple[str, int, int]],
+        open_occurrences: Sequence[tuple[str, int, int, OccurrenceStatus]],
     ) -> SingleClauseMonitor:
-        """Restore the declared ground-clause open state-card format."""
+        """Restore the declared ground-clause open state-card format.
+
+        Each occurrence record is `(oid, trigger_tick, deadline, status)`, the
+        four fields the specification names. Within one card the `oid` values
+        must be distinct, `trigger_tick` and `deadline` must be natural numbers
+        with `trigger_tick` no later than `deadline`, and `status` must be a
+        lifecycle value. This format carries open duties, so a record whose
+        status is any other lifecycle value is refused rather than restored
+        under a guessed reading.
+        """
         if type(initial_guard_value) is not K3:
             raise ValueError("initial_guard_value must be a K3 value")
         if type(current_tick) is not int or current_tick < -1:
@@ -189,25 +198,31 @@ class SingleClauseMonitor:
                 raise ValueError("retained_events cannot contain effect receipts")
             prior_tick = event.tick
 
-        occurrence_copy: list[tuple[str, int, int]] = []
+        occurrence_copy: list[tuple[str, int, int, OccurrenceStatus]] = []
         aliases: set[str] = set()
         for snapshot in open_occurrences:
-            if type(snapshot) is not tuple or len(snapshot) != 3:
+            if type(snapshot) is not tuple or len(snapshot) != 4:
                 raise ValueError(
-                    "open_occurrences must contain (alias, trigger_tick, deadline) tuples"
+                    "open_occurrences must contain "
+                    "(oid, trigger_tick, deadline, status) tuples"
                 )
-            alias, trigger_tick, deadline = snapshot
-            if type(alias) is not str or not alias.startswith("o"):
-                raise ValueError("open occurrence alias must use canonical oN form")
-            suffix = alias[1:]
-            if not suffix.isdigit() or int(suffix) < 1 or alias != f"o{int(suffix)}":
-                raise ValueError("open occurrence alias must use canonical oN form")
+            alias, trigger_tick, deadline, status = snapshot
+            if type(alias) is not str or not alias:
+                raise ValueError("open occurrence oid must be a non-empty string")
             if alias in aliases:
-                raise ValueError("open_occurrences must contain unique aliases")
+                raise ValueError("open_occurrences must contain unique oid values")
             if type(trigger_tick) is not int or trigger_tick < 0:
                 raise ValueError("trigger_tick must be a natural-number integer")
             if type(deadline) is not int or deadline < trigger_tick:
                 raise ValueError("deadline must be an integer no earlier than trigger_tick")
+            if type(status) is not OccurrenceStatus:
+                raise ValueError("status must be an OccurrenceStatus value")
+            if status is not OccurrenceStatus.OPEN:
+                raise ValueError(
+                    "this state-card format carries open duties, so a "
+                    f"{status.value} status is outside the executable "
+                    "conformance fragment"
+                )
             if trigger_tick > current_tick or deadline <= current_tick:
                 raise ValueError(
                     "open occurrence must be live at current_tick within its deadline"
@@ -215,7 +230,7 @@ class SingleClauseMonitor:
             if deadline != trigger_tick + spec.bound:
                 raise ValueError("deadline must equal trigger_tick plus the clause bound")
             aliases.add(alias)
-            occurrence_copy.append((alias, trigger_tick, deadline))
+            occurrence_copy.append((alias, trigger_tick, deadline, status))
 
         if occurrence_copy and initial_guard_value is not K3.T:
             raise ValueError("open_occurrences require an initially true guard")
@@ -240,11 +255,18 @@ class SingleClauseMonitor:
                     trigger_tick=trigger_tick,
                     deadline=deadline,
                     guard_key=guard_key,
-                    status=OccurrenceStatus.OPEN,
+                    status=status,
                 )
-                for alias, trigger_tick, deadline in occurrence_copy
+                for alias, trigger_tick, deadline, status in occurrence_copy
             }
-            monitor._oid_counter = max(int(alias[1:]) for alias in aliases)
+            # Keep numbering monotone where the card used the monitor's own
+            # `oN` aliases; `_fresh_oid` skips any name already in use.
+            numbered = [
+                int(alias[1:])
+                for alias in aliases
+                if alias.startswith("o") and alias[1:].isdigit()
+            ]
+            monitor._oid_counter = max(numbered) if numbered else 0
         return monitor
 
     def observe(self, key: str, value: K3, tick: int) -> None:
@@ -278,7 +300,11 @@ class SingleClauseMonitor:
 
     def _fresh_oid(self) -> str:
         self._oid_counter += 1
-        return f"o{self._oid_counter}"
+        oid = f"o{self._oid_counter}"
+        while oid in self.occurrences:
+            self._oid_counter += 1
+            oid = f"o{self._oid_counter}"
+        return oid
 
     # -- Implemented single-clause transition order ------------------------
 

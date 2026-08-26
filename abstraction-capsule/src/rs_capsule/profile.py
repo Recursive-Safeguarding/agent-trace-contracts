@@ -10,6 +10,7 @@ from rs_metalang_ref.contracts import AfterClauseSpec, GroundGuard, Linear
 from rs_metalang_ref.events import Complete, DomainEvent, TerminalEvent
 from rs_metalang_ref.kleene import K3
 from rs_metalang_ref.monitor import SingleClauseMonitor
+from rs_metalang_ref.obligations import OccurrenceStatus
 from rs_metalang_ref.residual import (
     Disabled,
     DisabledSink,
@@ -31,6 +32,7 @@ class OccurrenceRecord:
     oid: str
     trigger_tick: int
     deadline: int
+    status: OccurrenceStatus
 
 
 @dataclasses.dataclass(frozen=True)
@@ -128,7 +130,12 @@ def _build_interface(spec: AfterClauseSpec) -> ContinuationInterface:
                 retained_events=term.retained_events,
                 current_tick=environment["current_tick"],
                 open_occurrences=tuple(
-                    (record.oid, record.trigger_tick, record.deadline)
+                    (
+                        record.oid,
+                        record.trigger_tick,
+                        record.deadline,
+                        record.status,
+                    )
                     for record in term.occurrence_table
                 ),
             )

@@ -66,7 +66,7 @@ def _restore_open_state_card(**overrides) -> SingleClauseMonitor:
         "initial_guard_value": K3.T,
         "retained_events": (TickEvent(event_id="retained-0", tick=0),),
         "current_tick": 3,
-        "open_occurrences": (("o2", 3, 5),),
+        "open_occurrences": (("o2", 3, 5, OccurrenceStatus.OPEN),),
     }
     arguments.update(overrides)
     return restore(_ground_spec(), **arguments)
@@ -103,7 +103,7 @@ def _admission_error_type(name: str) -> type[BaseException]:
 
 def test_restore_open_state_card_returns_a_complete_running_monitor():
     retained_events = [TickEvent(event_id="retained-0", tick=0)]
-    open_occurrences = [("o2", 3, 5)]
+    open_occurrences = [("o2", 3, 5, OccurrenceStatus.OPEN)]
 
     monitor = _restore_open_state_card(
         retained_events=retained_events,
@@ -131,7 +131,7 @@ def test_restore_open_state_card_returns_a_complete_running_monitor():
     assert restored.discovery_time is None
 
     retained_events.append(TickEvent(event_id="outside-1", tick=1))
-    open_occurrences.append(("o9", 3, 5))
+    open_occurrences.append(("o9", 3, 5, OccurrenceStatus.OPEN))
     assert tuple(monitor.occurrences) == ("o2",)
 
 
@@ -216,20 +216,28 @@ def test_restore_open_state_card_rejects_invalid_top_level_values(
 @pytest.mark.parametrize(
     "snapshot",
     [
+        pytest.param(("o1", 3, 5), id="missing-status"),
         pytest.param(("o1", 3), id="missing-deadline"),
-        pytest.param(["o1", 3, 5], id="record-not-a-tuple"),
-        pytest.param(("o1", True, 5), id="boolean-trigger-tick"),
-        pytest.param(("o1", 3, 5.0), id="float-deadline"),
-        pytest.param(("o1", -1, 5), id="negative-trigger-tick"),
-        pytest.param(("o1", 3, 2), id="deadline-before-trigger"),
-        pytest.param(("o1", 4, 6), id="trigger-after-current-tick"),
-        pytest.param(("o1", 0, 2), id="expired-open-occurrence"),
+        pytest.param(["o1", 3, 5, OccurrenceStatus.OPEN], id="record-not-a-tuple"),
+        pytest.param(("o1", True, 5, OccurrenceStatus.OPEN), id="boolean-trigger-tick"),
+        pytest.param(("o1", 3, 5.0, OccurrenceStatus.OPEN), id="float-deadline"),
+        pytest.param(("o1", -1, 5, OccurrenceStatus.OPEN), id="negative-trigger-tick"),
+        pytest.param(("o1", 3, 2, OccurrenceStatus.OPEN), id="deadline-before-trigger"),
+        pytest.param(("o1", 4, 6, OccurrenceStatus.OPEN), id="trigger-after-current-tick"),
+        pytest.param(("o1", 0, 2, OccurrenceStatus.OPEN), id="expired-open-occurrence"),
+        pytest.param(("o1", 3, 5, "Open"), id="status-not-a-lifecycle-value"),
+        pytest.param(
+            ("o1", 3, 5, OccurrenceStatus.DISCHARGED), id="status-not-open"
+        ),
+        pytest.param(
+            ("o1", 3, 5, OccurrenceStatus.CONDITIONAL_OPEN), id="status-conditional"
+        ),
     ],
 )
 def test_restore_open_state_card_rejects_malformed_open_occurrences(snapshot):
     with pytest.raises(
         ValueError,
-        match="open_occurrences|trigger_tick|deadline",
+        match="open_occurrences|trigger_tick|deadline|status",
     ):
         _restore_open_state_card(open_occurrences=(snapshot,))
 
@@ -238,24 +246,50 @@ def test_restore_open_state_card_rejects_malformed_open_occurrences(snapshot):
     "alias",
     [
         pytest.param("", id="empty"),
-        pytest.param("1", id="missing-prefix"),
-        pytest.param("o0", id="zero"),
-        pytest.param("o01", id="leading-zero"),
-        pytest.param("o-1", id="negative"),
         pytest.param(1, id="non-string"),
     ],
 )
-def test_restore_open_state_card_rejects_noncanonical_aliases(alias):
-    with pytest.raises(ValueError, match="alias|canonical"):
-        _restore_open_state_card(open_occurrences=((alias, 3, 5),))
+def test_restore_open_state_card_rejects_an_unusable_alias(alias):
+    with pytest.raises(ValueError, match="alias|oid"):
+        _restore_open_state_card(
+            open_occurrences=((alias, 3, 5, OccurrenceStatus.OPEN),)
+        )
+
+
+@pytest.mark.parametrize(
+    "alias",
+    [
+        pytest.param("1", id="digits-only"),
+        pytest.param("o0", id="zero"),
+        pytest.param("o01", id="leading-zero"),
+        pytest.param("o-1", id="hyphenated"),
+        pytest.param("export-needs-approval#2", id="structured"),
+    ],
+)
+def test_restore_open_state_card_admits_any_unique_alias(alias):
+    # Appendix B requires only that `oid` values are unique within one state
+    # card. It fixes no spelling for them.
+    monitor = _restore_open_state_card(
+        open_occurrences=((alias, 3, 5, OccurrenceStatus.OPEN),)
+    )
+    assert tuple(monitor.occurrences) == (alias,)
+
+
+def test_restore_open_state_card_gives_a_later_trigger_an_unused_alias():
+    monitor = _restore_open_state_card(
+        open_occurrences=(("o1", 3, 5, OccurrenceStatus.OPEN),)
+    )
+    monitor.step(DomainEvent(event_id="later-export", tick=4, tag="export"))
+    assert len(monitor.occurrences) == 2
+    assert len(set(monitor.occurrences)) == 2
 
 
 def test_restore_open_state_card_rejects_duplicate_aliases():
     with pytest.raises(ValueError, match="duplicate|unique"):
         _restore_open_state_card(
             open_occurrences=(
-                ("o2", 3, 5),
-                ("o2", 3, 5),
+                ("o2", 3, 5, OccurrenceStatus.OPEN),
+                ("o2", 3, 5, OccurrenceStatus.OPEN),
             )
         )
 
@@ -300,15 +334,15 @@ def test_restore_open_state_card_validates_before_monitor_construction():
         "SingleClauseMonitor must own restore_open_state_card"
     )
 
-    with pytest.raises(ValueError, match="alias|canonical"):
+    with pytest.raises(ValueError, match="alias|unique|oid"):
         restore(
             _ground_spec(),
             initial_guard_value=K3.T,
             retained_events=(),
             current_tick=3,
             open_occurrences=(
-                ("o2", 3, 5),
-                ("o01", 3, 5),
+                ("o2", 3, 5, OccurrenceStatus.OPEN),
+                ("o2", 3, 5, OccurrenceStatus.OPEN),
             ),
         )
 
@@ -329,7 +363,7 @@ def test_restore_open_state_card_constructs_the_bound_monitor_class():
         initial_guard_value=K3.T,
         retained_events=(),
         current_tick=3,
-        open_occurrences=(("o2", 3, 5),),
+        open_occurrences=(("o2", 3, 5, OccurrenceStatus.OPEN),),
     )
 
     assert type(monitor) is MonitorSubclass

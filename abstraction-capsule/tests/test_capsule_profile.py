@@ -20,12 +20,21 @@ from pathlib import Path
 import pytest
 import rs_capsule.profile as profile_module
 from rs_capsule.capsule import SOURCE_TRACE, build_source_prefix
-from rs_capsule.profile import OccurrenceRecord, Profile, StateCardTerm, build_profile
+from rs_capsule.cards import open_obligation_card
+from rs_capsule.profile import (
+    OccurrenceRecord,
+    Profile,
+    StateCardTerm,
+    build_profile,
+    project_summary_mode,
+)
 from rs_metalang_ref import residual as residual_module
 from rs_metalang_ref.contracts import AfterClauseSpec, Linear
 from rs_metalang_ref.events import TickEvent
 from rs_metalang_ref.kleene import K3
 from rs_metalang_ref.monitor import SingleClauseMonitor
+from rs_metalang_ref.obligations import OccurrenceStatus
+from rs_metalang_ref.verdict import Mode, Summary
 
 # The default terminal labels used by TotalizedLTS.
 TERMINAL_LABELS = frozenset(
@@ -236,29 +245,58 @@ def test_retained_environment_manifest_is_enumerated_and_closed():
     assert set(environment.keys()) == set(manifest.fields)
 
 
-def test_occurrence_record_contains_only_an_open_snapshot():
+def test_occurrence_record_carries_the_four_fields_appendix_b_names():
     assert tuple(field.name for field in dataclasses.fields(OccurrenceRecord)) == (
         "oid",
         "trigger_tick",
         "deadline",
+        "status",
     )
-    assert dataclasses.asdict(OccurrenceRecord("o1", 0, 2)) == {
+    assert dataclasses.asdict(
+        OccurrenceRecord("o1", 0, 2, OccurrenceStatus.OPEN)
+    ) == {
         "oid": "o1",
         "trigger_tick": 0,
         "deadline": 2,
+        "status": OccurrenceStatus.OPEN,
     }
 
 
-def test_occurrence_record_rejects_a_lifecycle_status():
-    assert "status" not in inspect.signature(OccurrenceRecord).parameters
+def test_occurrence_record_requires_a_lifecycle_status():
+    assert "status" in inspect.signature(OccurrenceRecord).parameters
 
     with pytest.raises(TypeError):
-        OccurrenceRecord(
-            "o1",
-            trigger_tick=0,
-            deadline=2,
-            status="Open",
-        )
+        OccurrenceRecord("o1", trigger_tick=0, deadline=2)
+
+
+def test_the_state_card_appendix_b_prints_runs_unchanged():
+    # Appendix B Section 3 prints this state card as a literal input to this
+    # repository, so it has to be constructible and restartable as written.
+    printed = StateCardTerm(
+        retained_events=(),
+        occurrence_table=(
+            OccurrenceRecord(
+                oid="o2",
+                trigger_tick=2,
+                deadline=4,
+                status=OccurrenceStatus.OPEN,
+            ),
+        ),
+    )
+
+    profile = build_profile()
+    prefix = build_source_prefix(profile, SOURCE_TRACE)
+
+    assert open_obligation_card()(prefix) == printed
+
+    interface = profile.continuation_interface
+    configuration = interface.initialise(
+        printed, profile.retained_environment_manifest.extract(prefix)
+    )
+    assert project_summary_mode(interface.observe(configuration)) == (
+        Summary.UNKNOWN,
+        Mode.RUNNING,
+    )
 
 
 def test_profile_initialise_uses_monitor_owned_state_card_restoration(monkeypatch):
@@ -266,7 +304,9 @@ def test_profile_initialise_uses_monitor_owned_state_card_restoration(monkeypatc
     retained_events = (TickEvent(event_id="retained-0", tick=0),)
     term = StateCardTerm(
         retained_events=retained_events,
-        occurrence_table=(OccurrenceRecord("o2", 3, 5),),
+        occurrence_table=(
+            OccurrenceRecord("o2", 3, 5, OccurrenceStatus.OPEN),
+        ),
     )
     restore = getattr(SingleClauseMonitor, "restore_open_state_card", None)
     assert callable(restore), (
@@ -349,7 +389,7 @@ def test_profile_initialise_uses_monitor_owned_state_card_restoration(monkeypatc
             K3.T,
             retained_events,
             3,
-            (("o2", 3, 5),),
+            (("o2", 3, 5, OccurrenceStatus.OPEN),),
         )
     ]
     assert type(configuration._snapshot()) is SingleClauseMonitor
@@ -360,7 +400,9 @@ def test_profile_restores_an_open_card_that_continues_normally():
     configuration = profile.continuation_interface.initialise(
         StateCardTerm(
             retained_events=(TickEvent(event_id="retained-0", tick=0),),
-            occurrence_table=(OccurrenceRecord("o2", 3, 5),),
+            occurrence_table=(
+            OccurrenceRecord("o2", 3, 5, OccurrenceStatus.OPEN),
+        ),
         ),
         {
             "current_tick": 3,

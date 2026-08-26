@@ -203,5 +203,6 @@ def test_open_obligation_card_retains_only_open_records_from_a_mixed_prefix():
             oid="o2",
             trigger_tick=3,
             deadline=5,
+            status=OccurrenceStatus.OPEN,
         ),
     )
