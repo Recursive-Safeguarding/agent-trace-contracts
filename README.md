@@ -152,3 +152,11 @@ not specification section numbers.
 This repository is maintained by Recursive Safeguarding Ltd
 ([recursive-safeguarding.org](https://recursive-safeguarding.org)).
 The code is available under the MIT License. See `LICENSE`.
+
+## Funding
+
+<p><img src="docs/assets/aisi-logo-panel.png" height="48" alt="UK AI Security Institute logo"></p>
+
+| Funder | Programme | Grant |
+| --- | --- | --- |
+| UK AI Security Institute | Alignment Project | AP-S2-100116 |
